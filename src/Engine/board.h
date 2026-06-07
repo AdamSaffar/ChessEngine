@@ -4,7 +4,8 @@
 
 #ifndef CHESSENGINE_BOARD_H
 #define CHESSENGINE_BOARD_H
-#endif //CHESSENGINE_BOARD_H
+
+#include <cstdint>
 
 using U64 = uint64_t;
 
@@ -24,6 +25,22 @@ enum PIECE_TYPE {
 };
 
 class Board {
+private:
     // 12 distinct bitboards(6 for white, 6 for black)
-    pieceBitBoards[12];
+    U64 pieceBitBoards[12];
+
+    // Summary bitboards for fast occupancy checks(indexed by color)
+    U64 occupancies[3];
+
+    // Game state variables
+    int sideToMove;
+    int enPassantSquare;
+    int castlingRights;
+public:
+    // Constructor
+    Board();
+
+    void initStandardPosition();
+    void printBoard();
 };
+#endif //CHESSENGINE_BOARD_H
