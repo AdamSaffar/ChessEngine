@@ -71,7 +71,43 @@ void Board::initStandardPosition() {
     enPassantSquare = -1; // no enPassant avail
     castlingRights = 15;  // 1111 in binary (all 4 castling rights avail)
 }
+
 // Terminal prints from TOP TO BOTTOM and LEFT TO RIGHT
 void Board::printBoard() {
+    std::cout << "\n  a b c d e f g h\n"; // print file type at the TOP
 
+    // Loop through ranks, 8 down to 1
+    for (int row = 7; row >= 0; row--) {
+        std::cout << row + 1 << ' '; // print row num on the RIGHT
+        // Loop through A-H files
+        for (int col = 0; col < 8; col++) {
+            int square = row * 8 + col;
+            char pieceChar = '.'; // default empty square
+            /*
+             * Mask a temporary 64-bit integer where exactly ONE bit is on,
+             * and the other 63 bits are zeros.
+             * Shifts the 1's bit to exactly the square we're looking at
+             */
+            U64 squareMask = 1ULL << square;
+            // check if the combined board has a piece overlapping our mask
+            if (occupancies[COLOR::BOTH] & squareMask) {
+                // if there is an overlapping piece, check which type of piece it is
+                if (pieceBitBoards[PIECE_TYPE::Pawn] & squareMask) pieceChar = 'P';
+                else if (pieceBitBoards[PIECE_TYPE::Knight] & squareMask) pieceChar = 'N';
+                else if (pieceBitBoards[PIECE_TYPE::Bishop] & squareMask) pieceChar = 'B';
+                else if (pieceBitBoards[PIECE_TYPE::Rook] & squareMask) pieceChar = 'R';
+                else if (pieceBitBoards[PIECE_TYPE::Queen] & squareMask) pieceChar = 'Q';
+                else if (pieceBitBoards[PIECE_TYPE::King] & squareMask) pieceChar = 'K';
+                else if (pieceBitBoards[PIECE_TYPE::Pawn + 6] & squareMask) pieceChar = 'p';
+                else if (pieceBitBoards[PIECE_TYPE::Knight + 6] & squareMask) pieceChar = 'n';
+                else if (pieceBitBoards[PIECE_TYPE::Bishop + 6] & squareMask) pieceChar = 'b';
+                else if (pieceBitBoards[PIECE_TYPE::Rook + 6] & squareMask) pieceChar = 'r';
+                else if (pieceBitBoards[PIECE_TYPE::Queen + 6] & squareMask) pieceChar = 'q';
+                else if (pieceBitBoards[PIECE_TYPE::King + 6] & squareMask) pieceChar = 'k';
+            }
+            std::cout << pieceChar << " ";
+        }
+        std::cout << row + 1 << "\n"; // print row num on the RIGHT
+    }
+    std::cout << "  a b c d e f g h\n\n"; // print file type at the BOTTOM
 }

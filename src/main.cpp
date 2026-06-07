@@ -1,6 +1,7 @@
 #include <iostream>
-
+#include "Engine/board.h"
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    Board board;
+    board.printBoard();
     return 0;
 }
