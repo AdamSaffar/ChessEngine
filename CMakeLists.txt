@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(src/Engine)
 
-add_executable(ChessEngine src/main.cpp)
+add_executable(ChessEngine src/main.cpp
+        src/Engine/moveGeneration.cpp)
 
 # Link the Engine library to main executable
 target_link_libraries(ChessEngine PRIVATE Engine)
