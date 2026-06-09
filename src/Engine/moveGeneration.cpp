@@ -2,7 +2,7 @@
 // Created by saffa on 6/7/2026.
 //
 #include "board.h"
-
+#include <vector>
 /*
  * There are 64 possible squares for a piece to be.
  * Each piece has a certain number of possible moves.
@@ -200,4 +200,25 @@ void relevantBlockerMask() {
         queenMasks[square] |= mask;
     }
 }
+/* Permutation Generator that finds ALL possible ways pieces could
+ * be arranged inside a given mask, which calculates the ray for each scenario
+ */
+U64 setOccupancyHelper(int index, int bitsInMask, U64 mask) {
+    U64 occupancy = 0ULL;
 
+    // Loop through however many 1s are in our mask (e.g., 12)
+    for (int i = 0; i < bitsInMask; i++) {
+
+        // Finds the exact square of the lowest 1 bit in the mask
+        int square = __builtin_ctzll(mask);
+
+        // Turn that bit OFF in our temporary mask so __builtin_ctzll finds the next one next time
+        mask &= mask - 1;
+        // check if i-th bit of the index is turned on
+        if (index & (1 << i)) {
+            // turn on that exact square
+            occupancy |= (1ULL << square);
+        }
+    }
+    return occupancy;
+}
