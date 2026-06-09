@@ -122,8 +122,82 @@ void attackLookupTable() {
 
 }
 
-/*
-void generate_knight_moves(auto square) {
 
+// Ignore Edges of the Board:
+U64 not8thRank = 0x00FFFFFFFFFFFFFFULL; // equal: 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
+U64 not1stRank = 0xFFFFFFFFFFFFFF00ULL; // equal: 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
+// Already initialized not A and H files
+
+// For every square, we define the exact bounding box of the pieces vision
+U64 rookMasks[64];
+U64 bishopMasks[64];
+U64 queenMasks[64]; // Combination of rookMasks and bishopMasks
+/* map of the only squares on the entire board that have the power to block this specific piece.
+ * DOES NOT INCLUDE EDGES(since any piece lying on edge can't block the scope of other pieces
+ */
+void relevantBlockerMask() {
+    for (int square = 0; square < 64; square++) {
+        U64 piece = 1ULL << square;
+        U64 mask = 0ULL;
+        // ---ROOK MASK---
+
+        // UP (left shift)
+        U64 ray = piece;
+        while ((ray & not8thRank) && ((ray << 8) & not8thRank)) { // stop BEFORE 8th rank
+            ray <<= 8;
+            mask |= ray;
+        }
+        // DOWN (right shift)
+        ray = piece;
+        while ((ray & not1stRank) && ((ray >> 8) & not1stRank)) { // stop BEFORE 1st rank
+            ray >>= 8;
+            mask |= ray;
+        }
+        // RIGHT (LEFT SHIFT)
+        ray = piece;
+        while ((ray & notHFile) && ((ray << 1) & notHFile)) { // stop BEFORE H file
+            ray <<= 1;
+            mask |= ray;
+        }
+        // LEFT (RIGHT SHIFT)
+        ray = piece;
+        while ((ray & notAFile) && ((ray >> 1) & notAFile)) { // stop BEFORE A file
+            ray >>= 1;
+            mask |= ray;
+        }
+        rookMasks[square] = mask;
+        queenMasks[square] |= mask;
+        mask = 0ULL;
+
+        // --- BISHOP MASKS ---
+
+        // UP RIGHT (Left Shift)
+        ray = piece;
+        while (((ray & not8thRank) && (ray & notHFile)) && (((ray << 9) & not8thRank) && ((ray << 9) & notHFile))) { // Stop BEFORE 8th rank & H file
+            ray <<= 9;
+            mask |= ray;
+        }
+        // UP LEFT (Left Shift)
+        ray = piece;
+        while (((ray & not8thRank) && (ray & notAFile)) && (((ray << 7) & notAFile) && ((ray << 7) & not8thRank))) { // Stop BEFORE 8th rank & A file
+            ray <<= 7;
+            mask |= ray;
+        }
+        // DOWN LEFT(Right Shift)
+        ray = piece;
+        while (((ray & notAFile) && (ray & not1stRank)) && (((ray >> 9) & notAFile) && ((ray >> 9) & not1stRank))) {
+            ray >>= 9;
+            mask |= ray;
+        }
+        // DOWN RIGHT (Right Shift)
+        ray = piece;
+        while (((ray & not1stRank) && (ray & notHFile)) && (((ray >> 7) & not1stRank) && ((ray >> 7) & notHFile))) {
+            ray >>= 7;
+            mask |= ray;
+        }
+        bishopMasks[square] = mask;
+        // queen masks is a combo of rook and bishop masks
+        queenMasks[square] |= mask;
+    }
 }
-*/
+
