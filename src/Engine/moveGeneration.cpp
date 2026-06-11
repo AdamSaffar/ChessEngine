@@ -3,6 +3,7 @@
 //
 #include "board.h"
 #include <vector>
+#include <bit>
 /*
  * There are 64 possible squares for a piece to be.
  * Each piece has a certain number of possible moves.
@@ -25,7 +26,7 @@ const U64 notABFile = 0xFCFCFCFCFCFCFCFCULL; // equivalently: 11111100 11111100 
 /*this lookup table is meant to serve as an exhaustive list of every POSSIBLE ATTACKING MOVE
  that can be made with each individual piece. Not necessary every LEGAL move that can be made. */
 void attackLookupTable() {
-    for (int i = 0; i <= 63; i++) {
+    for (int i = 0; i < 64; i++) {
         // single piece placed on the current square
         U64 piece = 1ULL << i;
 
@@ -200,8 +201,15 @@ void relevantBlockerMask() {
         queenMasks[square] |= mask;
     }
 }
-/* Permutation Generator that finds ALL possible ways pieces could
- * be arranged inside a given mask, which calculates the ray for each scenario
+
+
+/**
+ * Translates our 'index' (a specific, randomized placement of pieces)
+ * onto a full 64-bit board.
+ *
+ * We loop this index from 0 up to 2^(bitsInMask) during initialization
+ * to hallucinate every single possible arrangement of blockers. Each call
+ * returns ONE specific iteration of those pieces mapped to the global board.
  */
 U64 setOccupancyHelper(int index, int bitsInMask, U64 mask) {
     U64 occupancy = 0ULL;
@@ -222,3 +230,82 @@ U64 setOccupancyHelper(int index, int bitsInMask, U64 mask) {
     }
     return occupancy;
 }
+// Simulates a Rook's true attack "ray/vision" against a specific arrangement of blockers.
+U64 simulateRookAttacks(int square, U64 blockers) {
+    U64 attacks = 0ULL;
+    int rank = square / 8; // rank(0-7)
+    int file = square % 8; // file(0-7)
+
+    // --- ROOK ATTACK RAYS ---
+
+    // UP (start at file + 1 and safely stop at top edge)
+    for (int i = file + 1; i <= 7; i++) {
+        U64 raySquare = 1ULL << (i * 8 + file); // convert coordinates back to 1D bit
+        attacks |= raySquare;
+        if (raySquare & blockers) { // if we hit the piece --> stop(include blocker in ray)
+            break;
+        }
+    }
+
+    // DOWN (start at file - 1 and safely stop at bottom edge)
+    for (int i = file - 1; i >= 0; i--) {
+        U64 raySquare = 1ULL << (i * 8 + file);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+
+    // RIGHT (start at right + 1 and safely stop at right edge)
+    for (int i = rank + 1; i <= 7; i++) {
+        U64 raySquare = 1ULL << (rank * 8 + i);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+
+    // LEFT (start at left - 1 and safley stop at left edge)
+    for (int i = rank - 1; i >= 0; i--) {
+        U64 raySquare = 1ULL << (rank * 8 + i);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+    return attacks;
+}
+
+
+// massive global lookup array for rook attacks
+U64 rookAttackTable[64][4096]; // [64 squares on a board][absolute maximum number of permutations any Rook mask can have(2^12 squares)]
+/** @brief Populates the bitboard attack lookup table for Rooks
+ * *This builder function pre-calculates every possible blocked attack ray for a Rook
+ * on all 64 squares. It uses the "Carry-Rippling" occupancy generator to create
+ * every physical arrangement of blocker pieces for a given square's mask, and then
+ * shoots a simulated laser to find the true attack ray for that permutation.
+ * * Performance Note:
+ * The inner loop dynamically scales to 2^(numOfBitsInMask).
+ * Across all 64 squares, the simulation runs exactly 102,400 times.
+ */
+void generateBlockedRookAttacks() {
+    for (int square = 0; square < 64; square++) {
+        // count how many squares are in this specific mask
+        int numOfBitsInMask = std::popcount(rookMasks[square]);
+
+        // find total number of permutations(2^num of bits)
+        int totalPermutations = 1 <<  numOfBitsInMask;
+        for (int index = 0; index < totalPermutations; index++) {
+            // hallucinate the blocking pieces for this specific index
+            U64 blockers = setOccupancyHelper(index, numOfBitsInMask, rookMasks[square]);
+
+            // shoot "lasers" at those blocking pieces to get the real attack array
+            U64 realRay = simulateRookAttacks(square, blockers);
+
+            rookAttackTable[square][index] = realRay;
+        }
+    }
+}
+
+//U64 bishopAttackTable[64][512]; // [64 squares on board][absolute maximum number of permutations any Bishop mask can have(2^9 squares)]
+
