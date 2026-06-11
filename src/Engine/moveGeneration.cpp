@@ -276,9 +276,54 @@ U64 simulateRookAttacks(int square, U64 blockers) {
     return attacks;
 }
 
+// Simulates a Bishops's true attack "ray/vision" against a specific arrangement of blockers.
+U64 simulateBishopAttacks(int square, U64 blockers) {
+    U64 attacks = 0ULL;
+    int rank = square / 8; // rank(0-7)
+    int file = square % 8; // file(0-7)
 
-// massive global lookup array for rook attacks
+    // --- BISHOP ATTACK RAYS ---
+
+    // UP RIGHT
+    for (int r = rank + 1, f = file + 1; r <= 7 && f <= 7; r++, f++) { // because two vars are changing at once, we track BOTH file and rank in the for loop
+        U64 raySquare = 1ULL << (r * 8 + f);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+
+    // UP LEFT
+    for (int r = rank + 1, f = file - 1; r <= 7 && f >= 0; r++,f--) {
+        U64 raySquare = 1ULL << (r * 8 + f);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+    // DOWN RIGHT
+    for (int r = rank - 1, f = file + 1; r >= 0 && f <= 7; r--, f++) {
+        U64 raySquare = 1ULL << (r * 8 + f);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+    // DOWN LEFT
+    for (int r = rank - 1, f = file - 1; r >= 0 && f >= 0; r--,f--) {
+        U64 raySquare = 1ULL << (r * 8 + f);
+        attacks |= raySquare;
+        if (raySquare & blockers) {
+            break;
+        }
+    }
+    return attacks;
+}
+// massive global lookup array for rook, bishop, and queen attacks
 U64 rookAttackTable[64][4096]; // [64 squares on a board][absolute maximum number of permutations any Rook mask can have(2^12 squares)]
+U64 bishopAttackTable[64][512]; // [64 squares on board][absolute maximum number of permutations any Bishop mask can have(2^9 squares)]
+// U64 queenAttackTable[64][524288];// [64 squares on board][absolute maximum number of permutations any Bishop mask can have(2^19 squares)]
+
 /** @brief Populates the bitboard attack lookup table for Rooks
  * *This builder function pre-calculates every possible blocked attack ray for a Rook
  * on all 64 squares. It uses the "Carry-Rippling" occupancy generator to create
@@ -307,5 +352,23 @@ void generateBlockedRookAttacks() {
     }
 }
 
-//U64 bishopAttackTable[64][512]; // [64 squares on board][absolute maximum number of permutations any Bishop mask can have(2^9 squares)]
+
+void generateBlockedBishopAttacks() {
+    for (int square = 0; square < 64; square++) {
+        // count how many squares are in this specific mask
+        int numOfBitsInMask = std::popcount(bishopMasks[square]);
+
+        // find total number of permutations(2^num of bits)
+        int totalPermutations = 1 <<  numOfBitsInMask;
+        for (int index = 0; index < totalPermutations; index++) {
+            // hallucinate the blocking pieces for this specific index
+            U64 blockers = setOccupancyHelper(index, numOfBitsInMask, bishopMasks[square]);
+
+            // shoot "lasers" at those blocking pieces to get the real attack array
+            U64 realRay = simulateBishopAttacks(square, blockers);
+
+            bishopAttackTable[square][index] = realRay;
+        }
+    }
+}
 
