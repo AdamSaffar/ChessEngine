@@ -347,7 +347,9 @@ void generateBlockedRookAttacks() {
             // shoot "lasers" at those blocking pieces to get the real attack array
             U64 realRay = simulateRookAttacks(square, blockers);
 
-            rookAttackTable[square][index] = realRay;
+            // USE MAGIC NUMBER to find where this specific board state belongs
+            //int magicIndex = (blockers * rookMagicNumbers[square]) >> (64 - numOfBitsInMask);
+            //rookAttackTable[square][magicIndex] = realRay;
         }
     }
 }
@@ -366,9 +368,21 @@ void generateBlockedBishopAttacks() {
 
             // shoot "lasers" at those blocking pieces to get the real attack array
             U64 realRay = simulateBishopAttacks(square, blockers);
+            // USE MAGIC NUMBER to find where this specific board state belongs
+            //int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - numOfBitsInMask);
 
-            bishopAttackTable[square][index] = realRay;
+            //bishopAttackTable[square][magicIndex] = realRay;
         }
     }
 }
+U64 getBishopAttacks(int square, U64 liveBoard) {
+    // mask the live board so we only look at the squares the bishop has vision to
+    U64 blockers = bishopMasks[square] & liveBoard;
 
+    // count num of bits in maks
+    int bitsInMask = std::popcount(bishopMasks[square]);
+
+    // Magic Formula to convert 64-bit integer blockers to a tiny number between 0-511
+    //int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - bitsInMask);
+    //return bishopAttackTable[square][magicIndex];
+}
