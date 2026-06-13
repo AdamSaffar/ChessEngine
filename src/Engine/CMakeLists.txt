@@ -6,6 +6,7 @@ add_library(Engine
         magicNumbers.cpp
         moveGeneration.cpp
         moveGeneration.h
+        magics.h
 
 )
 

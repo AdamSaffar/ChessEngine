@@ -6,4 +6,6 @@
 #define CHESSENGINE_MAGICS_H
 
 void initMagicNumbers();
+
+
 #endif //CHESSENGINE_MAGICS_H

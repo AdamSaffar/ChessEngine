@@ -2,6 +2,7 @@
 // Created by saffa on 6/7/2026.
 //
 #include "board.h"
+#include "magics.h"
 #include <vector>
 #include <bit>
 /*
@@ -369,9 +370,9 @@ void generateBlockedBishopAttacks() {
             // shoot "lasers" at those blocking pieces to get the real attack array
             U64 realRay = simulateBishopAttacks(square, blockers);
             // USE MAGIC NUMBER to find where this specific board state belongs
-            //int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - numOfBitsInMask);
+            int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - numOfBitsInMask);
 
-            //bishopAttackTable[square][magicIndex] = realRay;
+            bishopAttackTable[square][magicIndex] = realRay;
         }
     }
 }
@@ -383,6 +384,6 @@ U64 getBishopAttacks(int square, U64 liveBoard) {
     int bitsInMask = std::popcount(bishopMasks[square]);
 
     // Magic Formula to convert 64-bit integer blockers to a tiny number between 0-511
-    //int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - bitsInMask);
-    //return bishopAttackTable[square][magicIndex];
+    int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - bitsInMask);
+    return bishopAttackTable[square][magicIndex];
 }
