@@ -1,7 +1,7 @@
 #include <iostream>
-#include "Engine/board.h"
-#include "Engine/moveGeneration.h"
-#include "Engine/magicNumbers.h"
+#include "../include/board.h"
+#include "../include/moveGeneration.h"
+#include "../include/magicNumbers.h"
 int main() {
     // run attack lookup table
     attackLookupTable();

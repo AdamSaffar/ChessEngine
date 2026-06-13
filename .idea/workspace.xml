@@ -29,11 +29,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="937e889c-2556-494c-9633-bccb56583cd3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/Engine/magics.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/Engine/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Engine/magicNumbers.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/magicNumbers.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Engine/magicNumbers.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/magicNumbers.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/board.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/src/board.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/board.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/include/board.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/magicNumbers.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/src/magicNumbers.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/magicNumbers.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/include/magicNumbers.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/magics.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/include/magics.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/moveGeneration.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/src/moveGeneration.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Engine/moveGeneration.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/Engine/include/moveGeneration.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,6 +51,11 @@
   <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/src/Engine/include/magicNumbers.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/Engine/include/magics.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/Engine/include/moveGeneration.h" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="N4znDPlo" />
@@ -91,6 +101,13 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\saffa\CLionProjects\ChessEngine\src\Engine\src" />
+      <recent name="C:\Users\saffa\CLionProjects\ChessEngine\src\Engine" />
+      <recent name="C:\Users\saffa\CLionProjects\ChessEngine\include" />
+    </key>
+  </component>
   <component name="RunManager" selected="CMake Application.ChessEngine">
     <configuration name="ChessEngine" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="ChessEngine" TARGET_NAME="ChessEngine" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="ChessEngine" RUN_TARGET_NAME="ChessEngine">
       <method v="2">
@@ -119,7 +136,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1781388660607</updated>
-      <workItem from="1781388662391" duration="3072000" />
+      <workItem from="1781388662391" duration="3960000" />
     </task>
     <servers />
   </component>

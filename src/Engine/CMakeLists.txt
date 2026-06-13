@@ -1,13 +1,12 @@
 # This creates a static library called "Engine"
 add_library(Engine
-        board.cpp
-        board.h
-        magicNumbers.h
-        magicNumbers.cpp
-        moveGeneration.cpp
-        moveGeneration.h
-        magics.h
-
+        src/board.cpp
+        src/magicNumbers.cpp
+        src/moveGeneration.cpp
+        include/board.h
+        include/magicNumbers.h
+        include/moveGeneration.h
+        include/magics.h
 )
 
 # This allows main.cpp to #include "board.h"

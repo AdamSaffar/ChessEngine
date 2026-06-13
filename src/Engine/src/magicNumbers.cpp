@@ -2,8 +2,8 @@
  * Find 128 unique magic numbers(64 for Rooks, 64 for bishops)
  */
 
-#include "magicNumbers.h"
-#include "moveGeneration.h"
+#include "../../include/magicNumbers.h"
+#include "../../include/moveGeneration.h"
 #include <iostream>
 #include <bit>
 #include <random>
