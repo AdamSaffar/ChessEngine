@@ -26,11 +26,21 @@ inline constexpr uint16_t encodeMove(unsigned int startSquare, unsigned int targ
     // FLAG | TARGET |  START
     // 0-3     4-9      10-15
 
-    return static_cast<uint16_t>(flag) | (static_cast<uint16_t>(targetSquare) << 4) | (static_cast<uin16_t>(start) << 10);
+    return static_cast<uint16_t>(flag) | (static_cast<uint16_t>(targetSquare) << 4) | (static_cast<uint16_t>(startSquare) << 10);
 }
 
 /* Decoding Logic */
 
-// Extract Starting Square
-
+// Extract Flag (Bits 0-3)
+inline constexpr unsigned int getFlag(uint16_t move) {
+    return move & 0x000F; // mask: 0000 0000 0000 1111
+}
+// Extract Target Square(Bits 4-9)
+inline constexpr unsigned int getTarget(uint16_t move) {
+    return (move >> 4) & 0x003F; // shift right 4, then mask: 0000 0000 0011 1111
+}
+// Extract Start Square(Bits 10-15)
+inline constexpr unsigned int getStart(uint16_t move) {
+    return (move >> 10) & 0x003F; // shift right 10, then mask: 0000 0000 0011 1111
+}
 #endif //CHESSENGINE_MOVE_H
