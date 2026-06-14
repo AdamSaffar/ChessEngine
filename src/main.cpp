@@ -1,13 +1,14 @@
 #include <iostream>
-#include "../include/board.h"
-#include "../include/moveGeneration.h"
-#include "../include/magicNumbers.h"
+#include "Engine/include/board.h"
+#include "Engine/include/moveGeneration.h"
+#include "Engine/include/magicNumbers.h"
 int main() {
-    // run attack lookup table
-    attackLookupTable();
-    relevantBlockerMask();
+    // Call entire move generation system
+    initAllMoveGen();
+
     // print ALL 128 magic numbers for bishops and rooks to terminal
     initMagicNumbers();
+
     Board board;
     //board.printBoard();
     return 0;

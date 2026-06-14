@@ -1,7 +1,7 @@
 //
 // Created by saffa on 6/7/2026.
 //
-#include "../../include/board.h"
+#include "include/board.h"
 #include <iostream>
 
 Board::Board() {

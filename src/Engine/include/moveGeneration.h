@@ -5,16 +5,22 @@
 #ifndef CHESSENGINE_MOVEGENERATION_H
 #define CHESSENGINE_MOVEGENERATION_H
 
-#include <board.h>
+#include "board.h"
 
 extern U64 rookMasks[64];
 extern U64  bishopMasks[64];
 
+
+// Initialize functions
+void initAllMoveGen();
 void attackLookupTable();
 void relevantBlockerMask();
+void generateBlockedRookAttacks();
+void generateBlockedBishopAttacks();
 
 // Helper functions
 U64 setOccupancyHelper(int index, int bitsInMask, U64 mask);
 U64 simulateRookAttacks(int square, U64 blockers);
 U64 simulateBishopAttacks(int square, U64 blockers);
+
 #endif //CHESSENGINE_MOVEGENERATION_H

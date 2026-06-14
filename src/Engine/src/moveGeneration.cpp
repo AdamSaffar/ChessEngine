@@ -1,8 +1,9 @@
 //
 // Created by saffa on 6/7/2026.
 //
-#include "../../include/board.h"
-#include "../../include/magics.h"
+#include "include/moveGeneration.h"
+#include "include/board.h"
+#include "include/magics.h"
 #include <vector>
 #include <bit>
 /*
@@ -349,12 +350,11 @@ void generateBlockedRookAttacks() {
             U64 realRay = simulateRookAttacks(square, blockers);
 
             // USE MAGIC NUMBER to find where this specific board state belongs
-            //int magicIndex = (blockers * rookMagicNumbers[square]) >> (64 - numOfBitsInMask);
-            //rookAttackTable[square][magicIndex] = realRay;
+            int magicIndex = (blockers * rookMagicNumbers[square]) >> (64 - numOfBitsInMask);
+            rookAttackTable[square][magicIndex] = realRay;
         }
     }
 }
-
 
 void generateBlockedBishopAttacks() {
     for (int square = 0; square < 64; square++) {
@@ -376,6 +376,7 @@ void generateBlockedBishopAttacks() {
         }
     }
 }
+/* Getter functions for bishop, rook, and queen attacks */
 U64 getBishopAttacks(int square, U64 liveBoard) {
     // mask the live board so we only look at the squares the bishop has vision to
     U64 blockers = bishopMasks[square] & liveBoard;
@@ -386,4 +387,31 @@ U64 getBishopAttacks(int square, U64 liveBoard) {
     // Magic Formula to convert 64-bit integer blockers to a tiny number between 0-511
     int magicIndex = (blockers * bishopMagicNumbers[square]) >> (64 - bitsInMask);
     return bishopAttackTable[square][magicIndex];
+}
+
+U64 getRookAttacks(int square, U64 liveBoard) {
+    U64 blockers = rookMasks[square] & liveBoard;
+    int bitsInMask = std::popcount(rookMasks[square]);
+
+    // Magic Formula to convert 64-bit integer blockers to a tiny number between 0-4095
+    int magicIndex = (blockers * rookMagicNumbers[square]) >> (64 - bitsInMask);
+    return rookAttackTable[square][magicIndex];
+
+}
+
+U64 getQueenAttacks(int square, U64 liveBoard) {
+    /** Although the maximum number of bits in a mask for a queen is 2^19 = 524,288
+     * Which is much greater than total of max num of bits in a bishop and rooks mask = 2^12 + 2^9 = 4,608
+     * We can still bitwise OR them together because straight lines and diagonal lines are independent
+     */
+    return getRookAttacks(square, liveBoard) | getBishopAttacks(square, liveBoard);
+}
+
+
+// call all builder functions in correct order
+void initAllMoveGen() {
+    attackLookupTable(); // Base attacks (Knights, Kings, Pawns, etc)
+    relevantBlockerMask(); // Sliding piece masks(Bishops, Rooks, and Queens)
+    generateBlockedRookAttacks(); // magic rook table
+    generateBlockedBishopAttacks(); // magic bishop table
 }
