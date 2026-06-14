@@ -421,6 +421,22 @@ U64 getKnightAttacks(int square) {
 U64 getKingAttacks(int square) {
     return kingAttacks[square];
 }
+
+
+void generateMoves(MoveList& list, const Board &board) {
+    // --- STATE MASKS ---
+    U64 enemyPieces;
+    U64 friendlyPieces; // aka engines pieces
+    U64 allPieces = board.getOccupancies(COLOR::WHITE) | board.getOccupancies(COLOR::BLACK);
+    U64 emptySquares = ~allPieces; // '~' flips bits
+
+    if (board.getSideToMove() == COLOR::WHITE) {
+
+    } else if (board.getSideToMove() == COLOR::BLACK) {
+
+    }
+
+}
 // call all builder functions in correct order
 void initAllMoveGen() {
     attackLookupTable(); // Base attacks (Knights, Kings, Pawns, etc)

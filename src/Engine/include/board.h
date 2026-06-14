@@ -36,9 +36,17 @@ private:
     int sideToMove;
     int enPassantSquare;
     int castlingRights;
+
 public:
     // Constructor
     Board();
+
+    // --- Fast inline getters to fetch game state ---
+    inline int getSideToMove() const { return sideToMove;}
+    inline int getEnpassantSquare() const { return enPassantSquare;}
+    inline int getCastlingRights() const { return castlingRights;}
+    inline U64 getOccupancies(int color) const { return occupancies[color];} // Get colors total occupancy
+    inline U64 getPieceBitBoard(int pieceType) const { return pieceBitBoards[pieceType];}
 
     void initStandardPosition();
     void printBoard();

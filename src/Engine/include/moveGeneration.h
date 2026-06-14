@@ -6,7 +6,7 @@
 #define CHESSENGINE_MOVEGENERATION_H
 
 #include "board.h"
-
+#include "move.h"
 extern U64 rookMasks[64];
 extern U64  bishopMasks[64];
 
@@ -17,6 +17,7 @@ void attackLookupTable();
 void relevantBlockerMask();
 void generateBlockedRookAttacks();
 void generateBlockedBishopAttacks();
+void generateMoves(MoveList& list);
 
 // Helper functions
 U64 setOccupancyHelper(int index, int bitsInMask, U64 mask);
