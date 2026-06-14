@@ -7,6 +7,7 @@ add_library(Engine
         include/magicNumbers.h
         include/moveGeneration.h
         include/magics.h
+        include/move.h
 )
 
 # This allows main.cpp to #include "board.h"

@@ -6,7 +6,7 @@
 #define CHESSENGINE_MAGICS_H
 #include "board.h"
 /* Copied Magic Numbers from terminal */
-constexpr U64 rookMagicNumbers[64] = {
+inline constexpr U64 rookMagicNumbers[64] = { // FIX: add "inline constexpr" to avoid multiple definitions error AND a fast optomization trick(since normal func calls can take many CPU cycles)
     0x8080102040008000ULL,
     0x20000901a942040ULL,
     0x2020000400200802ULL,
@@ -73,7 +73,7 @@ constexpr U64 rookMagicNumbers[64] = {
     0x200108402402502ULL
 };
 
-constexpr U64 bishopMagicNumbers[64] = {
+inline constexpr U64 bishopMagicNumbers[64] = {
     0x4c4380860440140ULL,
     0x2002020a0c2000ULL,
     0x8021021400402002ULL,
