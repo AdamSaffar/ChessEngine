@@ -376,7 +376,8 @@ void generateBlockedBishopAttacks() {
         }
     }
 }
-/* Getter functions for bishop, rook, and queen attacks */
+/* Getter functions for sliding pieces */
+
 U64 getBishopAttacks(int square, U64 liveBoard) {
     // mask the live board so we only look at the squares the bishop has vision to
     U64 blockers = bishopMasks[square] & liveBoard;
@@ -407,7 +408,19 @@ U64 getQueenAttacks(int square, U64 liveBoard) {
     return getRookAttacks(square, liveBoard) | getBishopAttacks(square, liveBoard);
 }
 
+/* Getter functions for remaining pieces(pawn, knight, and king) */
 
+U64 getPawnAttacks(int square, COLOR color) {
+    return pawnAttacks[color][square];
+}
+
+U64 getKnightAttacks(int square) {
+    return knightAttacks[square];
+}
+
+U64 getKingAttacks(int square) {
+    return kingAttacks[square];
+}
 // call all builder functions in correct order
 void initAllMoveGen() {
     attackLookupTable(); // Base attacks (Knights, Kings, Pawns, etc)
