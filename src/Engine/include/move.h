@@ -43,4 +43,15 @@ inline constexpr unsigned int getTarget(uint16_t move) {
 inline constexpr unsigned int getStart(uint16_t move) {
     return (move >> 10) & 0x003F; // shift right 10, then mask: 0000 0000 0011 1111
 }
+
+struct MoveList {
+    // max number of legal moves in any chess position is 218
+    uint16_t moves[256];
+    int count = 0; 
+    // helper function to push move into moves array
+    inline void addMove(uint16_t move) {
+        moves[count] = move;
+        count++;
+    }
+};
 #endif //CHESSENGINE_MOVE_H
