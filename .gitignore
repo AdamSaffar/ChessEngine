@@ -1,0 +1,8 @@
+# CLion / JetBrains IDE folder
+.idea/
+
+# CMake Build directories (Never commit your compiled .exe files!)
+cmake-build-debug/
+cmake-build-release/
+build/
+out/
