@@ -457,7 +457,7 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+                list.addMove(encodeMove(startSquare, targetSquare, CAPTURE));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             white_pawns &= (white_pawns - 1);
@@ -468,7 +468,7 @@ void generateMoves(MoveList& list, const Board &board) {
             int targetSquare = __builtin_ctzll(singlePushes);
             // if we know where the pawn landed, the start square is just 8 squares behind it
             int startSquare = targetSquare - 8;
-            list.addMove(encodeMove(startSquare, targetSquare, 0));
+            list.addMove(encodeMove(startSquare, targetSquare, QUIET_MOVE));
             singlePushes &= (singlePushes - 1);
         }
         while (doublePushes != 0ULL) {
@@ -476,7 +476,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The pawn moved two squares (16 bits) to get here
             int startSquare = targetSquare - 16;
             // Pass a '1' flag to represent double pawn push
-            list.addMove(encodeMove(startSquare,targetSquare, 1));
+            list.addMove(encodeMove(startSquare,targetSquare, DOUBLE_PAWN_PUSH));
             doublePushes &= (doublePushes - 1);
         }
 
@@ -489,19 +489,19 @@ void generateMoves(MoveList& list, const Board &board) {
             // if the square in front of the pawn is empty, we can promote
             if ((1ULL << pushSquare) & emptySquares) {
                 // In chess, there are 4 types of pawn promotions:
-                list.addMove(encodeMove(startSquare, pushSquare, 8)); // knight push promotion
-                list.addMove(encodeMove(startSquare, pushSquare, 9)); // bishop push promotion
-                list.addMove(encodeMove(startSquare, pushSquare, 10)); // rook push promotion
-                list.addMove(encodeMove(startSquare, pushSquare, 11)); // queen push promotion
+                list.addMove(encodeMove(startSquare, pushSquare, PR_KNIGHT)); // knight push promotion
+                list.addMove(encodeMove(startSquare, pushSquare, PR_BISHOP)); // bishop push promotion
+                list.addMove(encodeMove(startSquare, pushSquare, PR_ROOK)); // rook push promotion
+                list.addMove(encodeMove(startSquare, pushSquare, PR_QUEEN)); // queen push promotion
             }
             // --- DIAGONAL CAPTURES ---
             U64 captureAttacks = pawnAttacks[turn][startSquare] & enemyPieces;
             while (captureAttacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(captureAttacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 12)); // knight capture promotion
-                list.addMove(encodeMove(startSquare, targetSquare, 13)); // bishop capture promotion
-                list.addMove(encodeMove(startSquare, targetSquare, 14)); // rook capture promotion
-                list.addMove(encodeMove(startSquare, targetSquare, 15)); // queen capture promotion
+                list.addMove(encodeMove(startSquare, targetSquare, PC_KNIGHT)); // knight capture promotion
+                list.addMove(encodeMove(startSquare, targetSquare, PC_BISHOP)); // bishop capture promotion
+                list.addMove(encodeMove(startSquare, targetSquare, PC_ROOK)); // rook capture promotion
+                list.addMove(encodeMove(startSquare, targetSquare, PC_QUEEN)); // queen capture promotion
 
                 captureAttacks &= (captureAttacks - 1);
             }
@@ -517,7 +517,7 @@ void generateMoves(MoveList& list, const Board &board) {
                 int startSquare = __builtin_ctzll(epAttackers);
 
                 // target is the ghost square
-                list.addMove(encodeMove(startSquare, epSquare, 5)); // pass the enPassant flag
+                list.addMove(encodeMove(startSquare, epSquare, EN_PASSANT)); // pass the enPassant flag
                 epAttackers &= (epAttackers - 1);
             }
         }
@@ -531,7 +531,11 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             white_king &= (white_king - 1);
@@ -546,7 +550,11 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             white_knights &= (white_knights - 1);
@@ -560,7 +568,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getBishopAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare,targetSquare,0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare,targetSquare,moveFlag));
                 attacks &= (attacks - 1);
             }
             white_bishop &= (white_bishop - 1);
@@ -572,7 +584,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getRookAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1);
             }
             white_rook &= (white_rook - 1);
@@ -584,7 +600,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getQueenAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1);
             }
             white_queen &= (white_queen - 1);
@@ -596,7 +616,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The squares F1 and G1 MUST be empty
             if ((allPieces & 0x0000000000000060ULL) == 0ULL) { // eq = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 01100000
                 // encode king move from E1(index 4) to G1 (index 6) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
-                list.addMove(encodeMove(4,6,2));
+                list.addMove(encodeMove(4,6,KING_CASTLE));
             }
         }
         // ---Queen Side Castle(O-O-O)---
@@ -604,7 +624,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The squares on B1, C1, and D1 must be empty
             if ((allPieces & 0x000000000000000EULL) == 0ULL) { // eq = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00001110
                 // encode king move from E1(index 4) to C1 (index 2) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(4, 2, 3)); // flag '3' handles rook later
+                list.addMove(encodeMove(4, 2, QUEEN_CASTLE)); // flag '3' handles rook later
             }
         }
     } else if (turn == COLOR::BLACK) {
@@ -625,7 +645,11 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             black_pawns &= (black_pawns - 1);
@@ -636,7 +660,7 @@ void generateMoves(MoveList& list, const Board &board) {
             int targetSquare = __builtin_ctzll(singlePushes);
             // if we know where the pawn landed, the start square is just 8 squares behind it
             int startSquare = targetSquare + 8;
-            list.addMove(encodeMove(startSquare, targetSquare, 0));
+            list.addMove(encodeMove(startSquare, targetSquare, QUIET_MOVE));
             singlePushes &= (singlePushes - 1);
         }
         while (doublePushes != 0ULL) {
@@ -644,7 +668,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The pawn moved two squares (16 bits) to get here
             int startSquare = targetSquare + 16;
             // Pass a '1' flag to represent double pawn push
-            list.addMove(encodeMove(startSquare,targetSquare, 1));
+            list.addMove(encodeMove(startSquare,targetSquare, DOUBLE_PAWN_PUSH));
             doublePushes &= (doublePushes - 1);
         }
         // --- BLACK PAWN PROMOTION ---
@@ -656,19 +680,19 @@ void generateMoves(MoveList& list, const Board &board) {
             // if the square in front of the pawn is empty, we can promote
             if ((1ULL << pushSquare) & emptySquares) {
                 // In chess, there are 4 types of pawn promotions:
-                list.addMove(encodeMove(startSquare, pushSquare, 8)); // knight
-                list.addMove(encodeMove(startSquare, pushSquare, 9)); // bishop
-                list.addMove(encodeMove(startSquare, pushSquare, 10)); // rook
-                list.addMove(encodeMove(startSquare, pushSquare, 11)); // queen
+                list.addMove(encodeMove(startSquare, pushSquare, PR_KNIGHT)); // knight
+                list.addMove(encodeMove(startSquare, pushSquare, PR_BISHOP)); // bishop
+                list.addMove(encodeMove(startSquare, pushSquare, PR_ROOK)); // rook
+                list.addMove(encodeMove(startSquare, pushSquare, PR_QUEEN)); // queen
             }
             // --- DIAGONAL CAPTURES ---
             U64 captureAttacks = pawnAttacks[turn][startSquare] & enemyPieces;
             while (captureAttacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(captureAttacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 12)); // knight
-                list.addMove(encodeMove(startSquare, targetSquare, 13)); // bishop
-                list.addMove(encodeMove(startSquare, targetSquare, 14)); // rook
-                list.addMove(encodeMove(startSquare, targetSquare, 15)); // queen
+                list.addMove(encodeMove(startSquare, targetSquare, PC_KNIGHT)); // knight
+                list.addMove(encodeMove(startSquare, targetSquare, PC_BISHOP)); // bishop
+                list.addMove(encodeMove(startSquare, targetSquare, PC_ROOK)); // rook
+                list.addMove(encodeMove(startSquare, targetSquare, PC_QUEEN)); // queen
 
                 captureAttacks &= (captureAttacks - 1);
             }
@@ -684,7 +708,7 @@ void generateMoves(MoveList& list, const Board &board) {
                 int startSquare = __builtin_ctzll(epAttackers);
 
                 // target is the ghost square
-                list.addMove(encodeMove(startSquare, epSquare, 5)); // pass the enPassant flag
+                list.addMove(encodeMove(startSquare, epSquare, EN_PASSANT)); // pass the enPassant flag
                 epAttackers &= (epAttackers - 1);
             }
         }
@@ -698,7 +722,11 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             black_king &= (black_king - 1);
@@ -713,7 +741,11 @@ void generateMoves(MoveList& list, const Board &board) {
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
             black_knights &= (black_knights - 1);
@@ -727,7 +759,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getBishopAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare,targetSquare,0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare,targetSquare,moveFlag));
                 attacks &= (attacks - 1);
             }
             black_bishop &= (black_bishop - 1);
@@ -739,7 +775,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getRookAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1);
             }
             black_rook &= (black_rook - 1);
@@ -751,7 +791,11 @@ void generateMoves(MoveList& list, const Board &board) {
             U64 attacks = getQueenAttacks(startSquare, allPieces) & ~friendlyPieces;
             while (attacks != 0ULL) {
                 int targetSquare = __builtin_ctzll(attacks);
-                list.addMove(encodeMove(startSquare, targetSquare, 0));
+
+                // Check if the target square overlaps with the enemy pieces bitboard
+                int moveFlag = ((1ULL << targetSquare) & enemyPieces) ? CAPTURE : QUIET_MOVE;
+
+                list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1);
             }
             black_queen &= (black_queen - 1);
@@ -764,7 +808,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The squares F8 and G8 MUST be empty
             if ((allPieces & 0x6000000000000000ULL) == 0ULL) { // eq = 01100000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
                 // encode king move from E8(index 60) to G8 (index 62) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
-                list.addMove(encodeMove(60, 62,2));
+                list.addMove(encodeMove(60, 62,KING_CASTLE));
             }
         }
         // ---Queen Side Castle(O-O-O)---
@@ -772,7 +816,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The squares on B8, C8, and D8 must be empty
             if ((allPieces & 0x0E00000000000000ULL) == 0ULL) { // eq = 00001110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
                 // encode king move from E8(index 60) to C8(index 58) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(60, 58, 3)); // flag '3' handles rook later
+                list.addMove(encodeMove(60, 58, QUEEN_CASTLE)); // flag '3' handles rook later
             }
         }
     }

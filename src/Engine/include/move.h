@@ -54,4 +54,28 @@ struct MoveList {
         count++;
     }
 };
+
+// --- FLAG STATE REPS ---
+enum MoveFlag {
+    QUIET_MOVE = 0,
+    DOUBLE_PAWN_PUSH = 1,
+    KING_CASTLE = 2,
+    QUEEN_CASTLE = 3,
+    CAPTURE = 4,
+    EN_PASSANT = 5,
+
+    // Flags 6 and 7 unused
+
+    // Standard promotions
+    PR_KNIGHT = 8,
+    PR_BISHOP = 9,
+    PR_ROOK = 10,
+    PR_QUEEN = 11,
+
+    // Capture promotions
+    PC_KNIGHT = 12,
+    PC_BISHOP = 13,
+    PC_ROOK = 14,
+    PC_QUEEN = 15
+};
 #endif //CHESSENGINE_MOVE_H
