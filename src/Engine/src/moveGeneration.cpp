@@ -604,7 +604,7 @@ void generateMoves(MoveList& list, const Board &board) {
             // The squares on B1, C1, and D1 must be empty
             if ((allPieces & 0x000000000000000EULL) == 0ULL) { // eq = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00001110
                 // encode king move from E1(index 4) to C1 (index 2) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(4, 2, 2)); // flag '2' handles rook later
+                list.addMove(encodeMove(4, 2, 3)); // flag '3' handles rook later
             }
         }
     } else if (turn == COLOR::BLACK) {
@@ -760,19 +760,19 @@ void generateMoves(MoveList& list, const Board &board) {
         /* --- BLACK CASTLING --- */
 
         // --- King Side Castle(O-O) ---
-        if (board.getCastlingRights() & 1) {
+        if (board.getCastlingRights() & 4) {
             // The squares F8 and G8 MUST be empty
             if ((allPieces & 0x6000000000000000ULL) == 0ULL) { // eq = 01100000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
-                // encode king move from E8(index 4) to G8 (index 6) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
+                // encode king move from E8(index 60) to G8 (index 62) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
                 list.addMove(encodeMove(60, 62,2));
             }
         }
         // ---Queen Side Castle(O-O-O)---
-        if (board.getCastlingRights() & 2) {
+        if (board.getCastlingRights() & 8) {
             // The squares on B8, C8, and D8 must be empty
             if ((allPieces & 0x0E00000000000000ULL) == 0ULL) { // eq = 00001110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
-                // encode king move from E8(index 4) to C8(index 2) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(60, 58, 2)); // flag '2' handles rook later
+                // encode king move from E8(index 60) to C8(index 58) with QUEEN SIDE CASTLE FLAG
+                list.addMove(encodeMove(60, 58, 3)); // flag '3' handles rook later
             }
         }
     }
