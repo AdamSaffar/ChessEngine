@@ -28,6 +28,16 @@ const U64 RANK_3 = 0x0000000000FF0000ULL; // Mask for the 3rd Rank, equivalently
 const U64 RANK_6 = 0x0000FF0000000000ULL; // Mask for the 6th Rank, equivalently:00000000 00000000 11111111 00000000 00000000 00000000 00000000 00000000
 const U64 RANK_7 = 0x00FF000000000000ULL;// Mask for the 7th Rank, equivalently:00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000
 
+const int castlingRightsUpdate[64] = {
+    13, 15, 15, 15, 12, 15, 15, 14,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+     7, 15, 15, 15,  3, 15, 15, 11
+};
 /*this lookup table is meant to serve as an exhaustive list of every POSSIBLE ATTACKING MOVE
  that can be made with each individual piece. Not necessary every LEGAL move that can be made. */
 void attackLookupTable() {
@@ -820,6 +830,147 @@ void generateMoves(MoveList& list, const Board &board) {
             }
         }
     }
+}
+/** Executes a pseudo-legal move on the board and verifies its legal.
+ * This function decodes the 16-bit move and phyiscally updates the bitboards for both
+ * normal movements and special rules (captures, en passant, castling, promotion).
+ * Then it updates internal game state (occupancies, turn, castling rights)
+ * Preforms King safety check to ensure move is legal.
+ *
+ */
+bool makeMove(uint16_t move, Board& board) {
+    int sideToMove = board.getSideToMove();
+    unsigned int flag = getFlag(move);
+    unsigned int startSquare = getStart(move);
+    unsigned int targetSquare = getTarget(move);
+
+    // identify piece BEFORE moving
+    int pieceType = board.getPieceAt(startSquare);
+    if (pieceType == -1) return false; // no piece found
+
+    // Handle standard captures
+    int capturedPiece = -1;
+    if (flag == MoveFlag::CAPTURE || (flag >= MoveFlag::PC_KNIGHT && flag <= MoveFlag::PC_QUEEN)) {
+        capturedPiece = board.getPieceAt(targetSquare);
+    }
+    // safety check
+    if (capturedPiece != -1) {
+        // turn off the bit for the captured piece on target square
+        board.pieceBitBoards[capturedPiece] &= ~(1ULL << targetSquare);
+    }
+    // Pick up and put down piece
+    board.pieceBitBoards[pieceType] &= ~(1ULL << startSquare); // Turn off start
+    board.pieceBitBoards[pieceType] |= (1ULL << targetSquare); // Turn on target
+
+    // Defaults to none every turn, unless flag is Double Pawn Push
+    board.enPassantSquare = -1;
+    // Update Castling Rights based on what square was left and what square was landed on
+    board.castlingRights &= castlingRightsUpdate[startSquare];
+    board.castlingRights &= castlingRightsUpdate[targetSquare];
+    // Handle Special Flags
+    switch (flag) {
+        case DOUBLE_PAWN_PUSH:
+            // set new en passant square state since we double pushed
+            if (sideToMove == COLOR::WHITE) {
+                // Ghost square is 1 square behind
+                board.enPassantSquare = targetSquare - 8;
+            } else {
+                board.enPassantSquare = targetSquare + 8;
+            }
+            break;
+        case KING_CASTLE:
+            // move kingside rook
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Rook] &= ~(1ULL << 7); // Pick up H1
+                board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << 5); // Put down F1
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] &= ~(1ULL << 63); // Pick up H8
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << 61); // Put down F8
+            }
+            break;
+        case QUEEN_CASTLE:
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Rook] &= ~(1ULL << 0); // Pick up A1
+                board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << 3); // Put down D1
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] &= ~(1ULL << 56); // Pick up A8
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << 59); // Put down D8
+            }
+            break;
+        case EN_PASSANT:
+            if (sideToMove == COLOR::WHITE) {
+                int capturedPawnSquare = targetSquare - 8;
+                // white pawn captures black pawn
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << capturedPawnSquare);
+            } else {
+                int capturedPawnSquare = targetSquare + 8;
+                // black pawn captures white pawn
+                board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << capturedPawnSquare);
+            }
+            break;
+        // We treat promotional captures and standard promotions the same here, so we stack them
+        case PR_KNIGHT:
+        case PC_KNIGHT:
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
+                board.pieceBitBoards[PIECE_TYPE::Knight] |= (1ULL << targetSquare); // Spawn replacement Knight
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
+                board.pieceBitBoards[PIECE_TYPE::Knight + 6] |= (1ULL << targetSquare);
+            }
+            break;
+        case PR_BISHOP:
+        case PC_BISHOP:
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
+                board.pieceBitBoards[PIECE_TYPE::Bishop] |= (1ULL << targetSquare); // Spawn replacement Bishop
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
+                board.pieceBitBoards[PIECE_TYPE::Bishop + 6] |= (1ULL << targetSquare);
+            }
+            break;
+        case PR_ROOK:
+        case PC_ROOK:
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
+                board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << targetSquare); // Spawn replacement Rook
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << targetSquare);
+            }
+            break;
+        case PR_QUEEN:
+        case PC_QUEEN:
+            if (sideToMove == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
+                board.pieceBitBoards[PIECE_TYPE::Queen] |= (1ULL << targetSquare); // Spawn replacement Queen
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
+                board.pieceBitBoards[PIECE_TYPE::Queen + 6] |= (1ULL << targetSquare);
+            }
+            break;
+    }
+    // UPDATE BOARD STATES
+    board.occupancies[COLOR::WHITE] = 0ULL;
+    board.occupancies[COLOR::BLACK] = 0ULL;
+    for (int i = 0; i < 6; i++) board.occupancies[COLOR::WHITE] |= board.pieceBitBoards[i];
+    for (int i = 6; i < 12; i++) board.occupancies[COLOR::BLACK] |= board.pieceBitBoards[i];
+    board.occupancies[COLOR::BOTH] = board.occupancies[COLOR::WHITE] | board.occupancies[COLOR::BLACK];
+
+    board.sideToMove ^= 1;
+
+    // KING SAFETY CHECKS!
+    int ourColor = board.sideToMove ^ 1;
+
+    // Find kings exact square index
+    int kingPiece = (ourColor == COLOR::WHITE) ? PIECE_TYPE::King : PIECE_TYPE::King + 6;
+    int kingSquare = __builtin_ctzll(board.pieceBitBoards[kingPiece]);
+
+    // check if enemy is attacking our kings square
+    if (board.isSquareAttacked(kingSquare, board.sideToMove)) {
+        return false; // illegal move, king in check
+    }
+    return true; // VALID MOVE
 }
 // call all builder functions in correct order
 void initAllMoveGen() {
