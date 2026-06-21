@@ -8,6 +8,8 @@ add_library(Engine
         include/moveGeneration.h
         include/magics.h
         include/move.h
+        src/perft.h
+        src/perft.cpp
 )
 
 # This allows main.cpp to #include "board.h"

@@ -4,6 +4,7 @@
 
 #ifndef CHESSENGINE_PERFT_H
 #define CHESSENGINE_PERFT_H
-#include "board.h"
 
+#include "board.h"
+U64 perft(int depth, Board board);
 #endif //CHESSENGINE_PERFT_H
