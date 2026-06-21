@@ -1,15 +1,20 @@
 # This creates a static library called "Engine"
 add_library(Engine
+        # Source Files
         src/board.cpp
         src/magicNumbers.cpp
         src/moveGeneration.cpp
+        src/evaluation.cpp
+        src/perft.cpp
+
+        # Header files
         include/board.h
         include/magicNumbers.h
         include/moveGeneration.h
         include/magics.h
         include/move.h
-        src/perft.h
-        src/perft.cpp
+        include/perft.h
+        include/evaluation.h
 )
 
 # This allows main.cpp to #include "board.h"
