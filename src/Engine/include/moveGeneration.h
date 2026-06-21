@@ -4,9 +4,10 @@
 
 #ifndef CHESSENGINE_MOVEGENERATION_H
 #define CHESSENGINE_MOVEGENERATION_H
-
-#include "board.h"
 #include "move.h"
+using U64 = uint64_t;
+class Board; // forward declaration
+
 // Use extern so other files can see these tables without duplicate memory
 extern U64 rookMasks[64];
 extern U64 bishopMasks[64];

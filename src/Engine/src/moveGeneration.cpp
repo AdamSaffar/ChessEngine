@@ -6,6 +6,7 @@
 #include "include/magics.h"
 #include <vector>
 #include <bit>
+#include <iostream>
 /*
  * There are 64 possible squares for a piece to be.
  * Each piece has a certain number of possible moves.
@@ -138,7 +139,6 @@ void attackLookupTable() {
 
 }
 
-
 // Ignore Edges of the Board:
 U64 not8thRank = 0x00FFFFFFFFFFFFFFULL; // equal: 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
 U64 not1stRank = 0xFFFFFFFFFFFFFF00ULL; // equal: 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
@@ -153,70 +153,37 @@ U64 queenMasks[64]; // Combination of rookMasks and bishopMasks
  */
 void relevantBlockerMask() {
     for (int square = 0; square < 64; square++) {
-        U64 piece = 1ULL << square;
+        int rank = square / 8;
+        int file = square % 8;
         U64 mask = 0ULL;
-        // ---ROOK MASK---
 
-        // UP (left shift)
-        U64 ray = piece;
-        while ((ray & not8thRank) && ((ray << 8) & not8thRank)) { // stop BEFORE 8th rank
-            ray <<= 8;
-            mask |= ray;
-        }
-        // DOWN (right shift)
-        ray = piece;
-        while ((ray & not1stRank) && ((ray >> 8) & not1stRank)) { // stop BEFORE 1st rank
-            ray >>= 8;
-            mask |= ray;
-        }
-        // RIGHT (LEFT SHIFT)
-        ray = piece;
-        while ((ray & notHFile) && ((ray << 1) & notHFile)) { // stop BEFORE H file
-            ray <<= 1;
-            mask |= ray;
-        }
-        // LEFT (RIGHT SHIFT)
-        ray = piece;
-        while ((ray & notAFile) && ((ray >> 1) & notAFile)) { // stop BEFORE A file
-            ray >>= 1;
-            mask |= ray;
-        }
+        // --- ROOK MASK (ignore Rank 0, Rank 7, File 0, File 7 bounds) ---
+        // UP
+        for (int r = rank + 1; r <= 6; r++) mask |= (1ULL << (r * 8 + file));
+        // DOWN
+        for (int r = rank - 1; r >= 1; r--) mask |= (1ULL << (r * 8 + file));
+        // RIGHT
+        for (int f = file + 1; f <= 6; f++) mask |= (1ULL << (rank * 8 + f));
+        // LEFT
+        for (int f = file - 1; f >= 1; f--) mask |= (1ULL << (rank * 8 + f));
+
         rookMasks[square] = mask;
-        queenMasks[square] |= mask;
         mask = 0ULL;
 
-        // --- BISHOP MASKS ---
+        // --- BISHOP MASK (ignore outer edges) ---
+        // UP RIGHT
+        for (int r = rank + 1, f = file + 1; r <= 6 && f <= 6; r++, f++) mask |= (1ULL << (r * 8 + f));
+        // UP LEFT
+        for (int r = rank + 1, f = file - 1; r <= 6 && f >= 1; r++, f--) mask |= (1ULL << (r * 8 + f));
+        // DOWN RIGHT
+        for (int r = rank - 1, f = file + 1; r >= 1 && f <= 6; r--, f++) mask |= (1ULL << (r * 8 + f));
+        // DOWN LEFT
+        for (int r = rank - 1, f = file - 1; r >= 1 && f >= 1; r--, f--) mask |= (1ULL << (r * 8 + f));
 
-        // UP RIGHT (Left Shift)
-        ray = piece;
-        while (((ray & not8thRank) && (ray & notHFile)) && (((ray << 9) & not8thRank) && ((ray << 9) & notHFile))) { // Stop BEFORE 8th rank & H file
-            ray <<= 9;
-            mask |= ray;
-        }
-        // UP LEFT (Left Shift)
-        ray = piece;
-        while (((ray & not8thRank) && (ray & notAFile)) && (((ray << 7) & notAFile) && ((ray << 7) & not8thRank))) { // Stop BEFORE 8th rank & A file
-            ray <<= 7;
-            mask |= ray;
-        }
-        // DOWN LEFT(Right Shift)
-        ray = piece;
-        while (((ray & notAFile) && (ray & not1stRank)) && (((ray >> 9) & notAFile) && ((ray >> 9) & not1stRank))) {
-            ray >>= 9;
-            mask |= ray;
-        }
-        // DOWN RIGHT (Right Shift)
-        ray = piece;
-        while (((ray & not1stRank) && (ray & notHFile)) && (((ray >> 7) & not1stRank) && ((ray >> 7) & notHFile))) {
-            ray >>= 7;
-            mask |= ray;
-        }
         bishopMasks[square] = mask;
-        // queen masks is a combo of rook and bishop masks
-        queenMasks[square] |= mask;
+        queenMasks[square] = rookMasks[square] | bishopMasks[square];
     }
 }
-
 
 /**
  * Translates our 'index' (a specific, randomized placement of pieces)
@@ -254,8 +221,8 @@ U64 simulateRookAttacks(int square, U64 blockers) {
     // --- ROOK ATTACK RAYS ---
 
     // UP (start at file + 1 and safely stop at top edge)
-    for (int i = file + 1; i <= 7; i++) {
-        U64 raySquare = 1ULL << (i * 8 + file); // convert coordinates back to 1D bit
+    for (int r = rank + 1; r <= 7; r++) {
+        U64 raySquare = 1ULL << (r * 8 + file); // convert coordinates back to 1D bit
         attacks |= raySquare;
         if (raySquare & blockers) { // if we hit the piece --> stop(include blocker in ray)
             break;
@@ -263,8 +230,8 @@ U64 simulateRookAttacks(int square, U64 blockers) {
     }
 
     // DOWN (start at file - 1 and safely stop at bottom edge)
-    for (int i = file - 1; i >= 0; i--) {
-        U64 raySquare = 1ULL << (i * 8 + file);
+    for (int r = rank - 1; r >= 0; r--) {
+        U64 raySquare = 1ULL << (r * 8 + file);
         attacks |= raySquare;
         if (raySquare & blockers) {
             break;
@@ -272,8 +239,8 @@ U64 simulateRookAttacks(int square, U64 blockers) {
     }
 
     // RIGHT (start at right + 1 and safely stop at right edge)
-    for (int i = rank + 1; i <= 7; i++) {
-        U64 raySquare = 1ULL << (rank * 8 + i);
+    for (int f = file + 1; f <= 7; f++) {
+        U64 raySquare = 1ULL << (rank * 8 + f);
         attacks |= raySquare;
         if (raySquare & blockers) {
             break;
@@ -281,8 +248,8 @@ U64 simulateRookAttacks(int square, U64 blockers) {
     }
 
     // LEFT (start at left - 1 and safley stop at left edge)
-    for (int i = rank - 1; i >= 0; i--) {
-        U64 raySquare = 1ULL << (rank * 8 + i);
+    for (int f = file - 1; f >= 0; f--) {
+        U64 raySquare = 1ULL << (rank * 8 + f);
         attacks |= raySquare;
         if (raySquare & blockers) {
             break;
@@ -404,6 +371,7 @@ U64 getBishopAttacks(int square, U64 liveBoard) {
 }
 
 U64 getRookAttacks(int square, U64 liveBoard) {
+
     U64 blockers = rookMasks[square] & liveBoard;
     int bitsInMask = std::popcount(rookMasks[square]);
 
@@ -445,7 +413,7 @@ void generateMoves(MoveList& list, const Board &board) {
     int turn = board.getSideToMove();
     U64 friendlyPieces = board.getOccupancies(turn); // aka engines pieces(only called when its the engines turn)
     U64 enemyPieces = board.getOccupancies(turn ^ 1); // XOR trick
-    U64 allPieces = board.getOccupancies(COLOR::WHITE) | board.getOccupancies(COLOR::BLACK);
+    U64 allPieces = board.getOccupancies(COLOR::BOTH);
     U64 emptySquares = ~allPieces; // '~' flips bits
 
     if (turn == COLOR::WHITE) {
@@ -459,10 +427,10 @@ void generateMoves(MoveList& list, const Board &board) {
 
         // Take the valid single pushes, keep only the ones on Rank 3, shift them up again, check if empty
         U64 doublePushes = ((singlePushes & RANK_3) << 8) & emptySquares;
-
-        while (white_pawns != 0ULL) {
+        U64 temp_white_pawns = white_pawns; // Create a disposable copy
+        while (temp_white_pawns != 0ULL) {
             // Finds the exact square of the lowest 1 bit in the white_pawns mask
-            int startSquare = __builtin_ctzll(white_pawns);
+            int startSquare = __builtin_ctzll(temp_white_pawns);
             U64 attacks = pawnAttacks[turn][startSquare] & enemyPieces;
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
@@ -470,7 +438,7 @@ void generateMoves(MoveList& list, const Board &board) {
                 list.addMove(encodeMove(startSquare, targetSquare, CAPTURE));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
-            white_pawns &= (white_pawns - 1);
+            temp_white_pawns &= (temp_white_pawns - 1); // destroy the copy
         }
 
         // --- WHITE PAWNS(SPECIALTY CASE, forward pawn moves(non-attacking moves)) ---
@@ -625,16 +593,22 @@ void generateMoves(MoveList& list, const Board &board) {
         if (board.getCastlingRights() & 1) {
             // The squares F1 and G1 MUST be empty
             if ((allPieces & 0x0000000000000060ULL) == 0ULL) { // eq = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 01100000
-                // encode king move from E1(index 4) to G1 (index 6) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
-                list.addMove(encodeMove(4,6,KING_CASTLE));
+                // The King cannot be in check (E1), and cannot pass through check (F1)
+                if (!board.isSquareAttacked(4, turn ^ 1) && !board.isSquareAttacked(5, turn ^ 1)) {
+                    // encode king move from E1(index 4) to G1 (index 6) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
+                    list.addMove(encodeMove(4,6,KING_CASTLE));
+                }
             }
         }
         // ---Queen Side Castle(O-O-O)---
         if (board.getCastlingRights() & 2) {
             // The squares on B1, C1, and D1 must be empty
             if ((allPieces & 0x000000000000000EULL) == 0ULL) { // eq = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00001110
-                // encode king move from E1(index 4) to C1 (index 2) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(4, 2, QUEEN_CASTLE)); // flag '3' handles rook later
+                // The king cannot be in check (E1), and cannot pass through check (D1)
+                if (!board.isSquareAttacked(4, turn ^ 1) && !board.isSquareAttacked(3, turn ^ 1)) {
+                    // encode king move from E1(index 4) to C1 (index 2) with QUEEN SIDE CASTLE FLAG
+                    list.addMove(encodeMove(4, 2, QUEEN_CASTLE)); // flag '3' handles rook later
+                }
             }
         }
     } else if (turn == COLOR::BLACK) {
@@ -647,10 +621,10 @@ void generateMoves(MoveList& list, const Board &board) {
 
         // Take the valid single pushes, keep only the ones on Rank 6, shift them down again, check if empty
         U64 doublePushes = ((singlePushes & RANK_6) >> 8) & emptySquares;
-
-        while (black_pawns != 0ULL) {
+        U64 temp_black_pawns = black_pawns; // Create a disposable copy
+        while (temp_black_pawns != 0ULL) {
             // Finds the exact square of the lowest 1 bit in the white_pawns mask
-            int startSquare = __builtin_ctzll(black_pawns);
+            int startSquare = __builtin_ctzll(temp_black_pawns);
             U64 attacks = pawnAttacks[turn][startSquare] & enemyPieces;
             while (attacks != 0ULL) {
                 // Finds the exact square of the lowest 1 bit in the white_pawns attack mask
@@ -662,7 +636,7 @@ void generateMoves(MoveList& list, const Board &board) {
                 list.addMove(encodeMove(startSquare, targetSquare, moveFlag));
                 attacks &= (attacks - 1); // removes the lowest set bit(rightmost 1)
             }
-            black_pawns &= (black_pawns - 1);
+            temp_black_pawns &= (temp_black_pawns - 1);
         }
 
         // --- BLACK PAWNS(SPECIALTY CASE, forward pawn moves(non-attacking moves)) ---
@@ -817,16 +791,21 @@ void generateMoves(MoveList& list, const Board &board) {
         if (board.getCastlingRights() & 4) {
             // The squares F8 and G8 MUST be empty
             if ((allPieces & 0x6000000000000000ULL) == 0ULL) { // eq = 01100000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
-                // encode king move from E8(index 60) to G8 (index 62) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
-                list.addMove(encodeMove(60, 62,KING_CASTLE));
+                // King cannot be in check (E8), and cannot pass through check (F8)
+                if (!board.isSquareAttacked(60, turn ^ 1) && !board.isSquareAttacked(61, turn ^ 1)) {
+                    // encode king move from E8(index 60) to G8 (index 62) with KING SIDE CASTLE FLAG(flag '2' handles rook move later)
+                    list.addMove(encodeMove(60, 62,KING_CASTLE));
+                }
             }
         }
         // ---Queen Side Castle(O-O-O)---
         if (board.getCastlingRights() & 8) {
             // The squares on B8, C8, and D8 must be empty
             if ((allPieces & 0x0E00000000000000ULL) == 0ULL) { // eq = 00001110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
-                // encode king move from E8(index 60) to C8(index 58) with QUEEN SIDE CASTLE FLAG
-                list.addMove(encodeMove(60, 58, QUEEN_CASTLE)); // flag '3' handles rook later
+                if (!board.isSquareAttacked(60, turn ^ 1) && !board.isSquareAttacked(59, turn ^ 1)) {
+                    // encode king move from E8(index 60) to C8(index 58) with QUEEN SIDE CASTLE FLAG
+                    list.addMove(encodeMove(60, 58, QUEEN_CASTLE)); // flag '3' handles rook later
+                }
             }
         }
     }
