@@ -6,6 +6,8 @@
 #define CHESSENGINE_BOARD_H
 
 #include <cstdint>
+#include <string>
+#include <sstream>
 #include "moveGeneration.h"
 using U64 = uint64_t;
 
@@ -42,6 +44,9 @@ private:
      * Bit 3: Black QueenSide
      */
     int castlingRights;
+    // ADD TWO NEW INSTANCE VARIABLES
+    int halfMoveClock = 0;
+    int fullMoveNumber = 1;
 
 public:
     // Constructor
@@ -92,5 +97,118 @@ public:
     friend bool makeMove(uint16_t move, Board& board); // Use "friend" to give function access to private members
     void initStandardPosition();
     void printBoard();
+    // Translate FEN strings into internal bitboard representations
+    // FEN Strings appear in this form: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"(standard start setup)
+    void parseFEN(std::string fen) {
+        // Clear all bitboards
+        for (U64& board: pieceBitBoards) board = 0ULL;
+        // Clear occupancies
+        for (U64& occupancy: occupancies) occupancy = 0ULL;
+
+        // Use string stream to separate fen string by spaces
+        std::istringstream ss(fen);
+        std::string boardSection, turnSection, castlingSection, enPassantSection, halfMoveSection, fullMoveSection;
+
+        // Load all 4 chunks of string into their own variables( '>>' skips white space)
+        ss >> boardSection >> turnSection >> castlingSection >> enPassantSection >> halfMoveSection >> fullMoveSection;
+
+        // --- PARSE BOARD LAYOUT SECTION ---
+        int rank = 7; // Start at Rank 8
+        int file = 0; // Start at File A
+
+        for (char c : boardSection) {
+            if (c == ' ') break; // finished the board layout section
+            if (c == '/') {
+                rank--; // move down a rank
+                file = 0; // reset to File A
+            } else if (isdigit(c)) {
+                // Its a number(empty squares)
+                file += (c - '0'); // convert char to int
+            } else {
+                // Otherwise, its a piece.
+                int color = isupper(c) ? COLOR::WHITE : COLOR::BLACK; // Uppercase = White, LowerCase = Black
+                int pieceType = -1;
+                // Find the piece type
+                switch (tolower(c)) {
+                    case 'p':
+                        pieceType = PIECE_TYPE::Pawn;
+                        break;
+                    case 'n':
+                        pieceType = PIECE_TYPE::Knight;
+                        break;
+                    case 'b':
+                        pieceType = PIECE_TYPE::Bishop;
+                        break;
+                    case 'r':
+                        pieceType = PIECE_TYPE::Rook;
+                        break;
+                    case 'q':
+                        pieceType = PIECE_TYPE::Queen;
+                        break;
+                    case 'k':
+                        pieceType = PIECE_TYPE::King;
+                        break;
+                }
+                // Calculate bitboard index
+                // White piece(+0 offset), Black Piece(+6 offset)
+                int bitBoardIndex = pieceType + (color == COLOR::BLACK ? 6 : 0);
+
+                // Find 0-63 square index
+                int square = rank * 8 + file;
+
+                // Flip the bit to 1 on the correct bitboard and square
+                pieceBitBoards[bitBoardIndex] |= 1ULL << square;
+
+                // Update occupancy boards
+                occupancies[color] |= 1ULL << square;
+                occupancies[COLOR::BOTH] |= 1ULL << square;
+
+                file++; // Move to next square
+            }
+        }
+        // --- PARSE TURN SECTION ---
+        sideToMove = (turnSection == "w") ? COLOR::WHITE : COLOR::BLACK;
+
+        // --- PARSE CASTLING SECTION ---
+        castlingRights = 0; // Base case if neither side can castle
+        if (castlingSection != "-") {
+            for (char c : castlingSection) {
+                switch (c) {
+                    // White can castle king side
+                    case 'K':
+                        castlingRights |= 0b0001;
+                        break;
+                        // White can castle queen side
+                    case 'Q':
+                        castlingRights |= 0b0010;
+                        break;
+                        // Black can castle king side
+                    case 'k':
+                        castlingRights |= 0b0100;
+                        break;
+                        // Black can castle queen side
+                    case 'q':
+                        castlingRights |= 0b1000;
+                        break;
+                }
+            }
+        }
+        // --- PARSE ENPASSANT SECTION ---
+        enPassantSquare = -1; // Base Case: No enpassant avail
+        if (enPassantSection != "-") {
+            // En passant strings are always two chars: "e3"
+
+            // Subtract 'a' to get file index(0-7)
+            int fileIndex = enPassantSection[0] - 'a';
+            // subtract rank(1-8) by 1 to convert to int (0-7)
+            int rankIndex = enPassantSection[1] - '1';
+
+            enPassantSquare = rankIndex * 8 + fileIndex;
+        }
+        // --- PARSE CLOCK SECTIONS ---
+        halfMoveClock = std::stoi(halfMoveSection); // use std::stoi to convert string to int
+        fullMoveNumber = std::stoi(fullMoveSection);
+    }
+
 };
 #endif //CHESSENGINE_BOARD_H
