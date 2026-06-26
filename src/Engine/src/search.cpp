@@ -61,3 +61,28 @@ int negamax(Board& board, int depth) {
     }
     return maxScore;
 }
+
+int bestMoveToPlay = 0; // GUI will read this var when search finishes
+/** catch the physical move associated with the absolute highest score from the search */
+void searchRoot(Board& board, int depth) {
+    int maxScore = -INF;
+    int bestRootMove = 0;
+
+    MoveList moveList;
+    generateMoves(moveList, board);
+
+    for (int i = 0; moveList.count; i++) {
+        int move = moveList.moves[i];
+        if (!makeMove(move, board)) continue;
+
+        int score = -negamax(board, depth - 1);
+
+        unmakeMove(move, board);
+
+        if (score > maxScore) {
+            maxScore = score;
+            bestRootMove = move; // Save the phyiscal move that caused the highest score
+        }
+    }
+    bestMoveToPlay = bestRootMove;
+}
