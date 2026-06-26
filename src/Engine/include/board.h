@@ -25,7 +25,13 @@ enum PIECE_TYPE {
     Queen,
     King
 };
-
+// Used to store current game-state for unmakeMove() func
+struct GameState {
+    int castlingRights;
+    int enPassantSquare;
+    int halfMoveClock;
+    int capturedPieceType; // Store type of piece captured
+};
 class Board {
 private:
     // 12 distinct bitboards(6 for white, 6 for black)
@@ -48,6 +54,10 @@ private:
     int halfMoveClock = 0;
     int fullMoveNumber = 1;
 
+    // History stack
+    GameState history[512]; // Longest chess game was 538 half-moves 
+    // pointer to track current depth in the history stack
+    int historyPly = 0;
 public:
     // Constructor
     Board();
@@ -95,6 +105,7 @@ public:
         return false;
     }
     friend bool makeMove(uint16_t move, Board& board); // Use "friend" to give function access to private members
+    friend void unmakeMove(uint16_t move, Board& board);
     void initStandardPosition();
     void printBoard();
     // Translate FEN strings into internal bitboard representations
@@ -209,6 +220,5 @@ public:
         halfMoveClock = std::stoi(halfMoveSection); // use std::stoi to convert string to int
         fullMoveNumber = std::stoi(fullMoveSection);
     }
-
 };
 #endif //CHESSENGINE_BOARD_H

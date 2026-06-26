@@ -832,6 +832,13 @@ bool makeMove(uint16_t move, Board& board) {
     if (flag == MoveFlag::CAPTURE || (flag >= MoveFlag::PC_KNIGHT && flag <= MoveFlag::PC_QUEEN)) {
         capturedPiece = board.getPieceAt(targetSquare);
     }
+    // Save the current move state
+    board.history[board.historyPly].castlingRights = board.castlingRights;
+    board.history[board.historyPly].enPassantSquare = board.enPassantSquare;
+    board.history[board.historyPly].halfMoveClock = board.halfMoveClock;
+    board.history[board.historyPly].capturedPieceType = capturedPiece;
+    board.historyPly++;
+
     // safety check
     if (capturedPiece != -1) {
         // turn off the bit for the captured piece on target square
@@ -947,9 +954,99 @@ bool makeMove(uint16_t move, Board& board) {
 
     // check if enemy is attacking our kings square
     if (board.isSquareAttacked(kingSquare, board.sideToMove)) {
+        // revert the board state
+        unmakeMove(move, board);
         return false; // illegal move, king in check
     }
     return true; // VALID MOVE
+}
+/** Reverses a previously made move and restores boards state */
+void unmakeMove(uint16_t move, Board& board) {
+    unsigned int startSquare = getStart(move);
+    unsigned int targetSquare = getTarget(move);
+    unsigned int flag = getFlag(move);
+    // flip the turn back to the player that made the move
+    int color = (board.sideToMove == COLOR::WHITE) ? COLOR::BLACK : COLOR::WHITE;
+    int colorOffset = (color == COLOR::BLACK) ? 6 : 0;
+
+    bool isPromotion = (flag >= PR_KNIGHT && flag <= PC_QUEEN);
+    // If there was a promotion, the piece that moved was a pawn
+    int pieceType = isPromotion ? PIECE_TYPE::Pawn : board.getPieceAt(targetSquare);
+    int bitBoardIndex = pieceType + colorOffset;
+
+    // Move history pointer back by 1 to view the game state before this move
+    board.historyPly--;
+    GameState state = board.history[board.historyPly];
+
+    // Restore State
+    board.castlingRights = state.castlingRights;
+    board.enPassantSquare = state.enPassantSquare;
+    board.halfMoveClock = state.halfMoveClock;
+    board.sideToMove = color;
+    board.fullMoveNumber -= (color == COLOR::BLACK) ? 1 : 0;
+
+    // Move the piece back
+    if (isPromotion) {
+        // Remove the promoted piece
+        int promotedPiece = board.getPieceAt(targetSquare);
+        board.pieceBitBoards[promotedPiece + colorOffset] ^= (1ULL << targetSquare);
+    } else {
+        // Normal move
+        board.pieceBitBoards[bitBoardIndex] ^= (1ULL << targetSquare); // Use XOR to remove piece from targetSquare
+    }
+    // Put the moving piece back on the start square
+    board.pieceBitBoards[bitBoardIndex] ^= (1ULL << startSquare);
+
+    // Update occupancies
+    board.occupancies[color] ^= (1ULL << targetSquare) | (1ULL << startSquare);
+
+    // reinstate captured piece if there was one
+    if (state.capturedPieceType != -1) {
+        board.pieceBitBoards[state.capturedPieceType] ^= (1ULL << targetSquare);
+        // update enemy occupancies
+        board.occupancies[color ^ 1] ^= (1ULL << targetSquare);
+    }
+
+    switch (flag) {
+        // Handle undoing Castle Moves
+        case KING_CASTLE:
+            // move kingside rook
+            if (color == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 7); // Add rook to H1
+                board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 5); // Delete rook on F1
+                board.occupancies[COLOR::WHITE] ^= (1ULL << 7) | (1ULL << 5);
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 63); // Add rook to H8
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 61); // Delete rook on F8
+                board.occupancies[COLOR::BLACK] ^= (1ULL << 63) | (1ULL << 61);
+            }
+            break;
+        case QUEEN_CASTLE:
+            if (color == COLOR::WHITE) {
+                board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 0); // Add rook to A1
+                board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 3); // Delete rook on D1
+                board.occupancies[COLOR::WHITE] ^= (1ULL << 0) | (1ULL << 3);
+            } else {
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 56); // Add rook to A8
+                board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 59); // Delete rook on D8
+                board.occupancies[COLOR::BLACK] ^= (1ULL << 56)| (1ULL << 59);
+            }
+            break;
+        // Handle undoing of En Passant
+        case EN_PASSANT:
+            if (color == COLOR::WHITE) {
+                int capturedPawnSquare = targetSquare - 8;
+                board.pieceBitBoards[PIECE_TYPE::Pawn + 6] ^= (1ULL << capturedPawnSquare);
+                board.occupancies[COLOR::BLACK] ^= (1ULL << capturedPawnSquare);
+            } else {
+                int capturedPawnSquare = targetSquare + 8;
+                board.pieceBitBoards[PIECE_TYPE::Pawn] ^= (1ULL << capturedPawnSquare);
+                board.occupancies[COLOR::WHITE] ^= (1ULL << capturedPawnSquare);
+            }
+            break;
+    }
+    // Final occupancy update
+    board.occupancies[COLOR::BOTH] = board.occupancies[COLOR::WHITE] | board.occupancies[COLOR::BLACK];
 }
 // call all builder functions in correct order
 void initAllMoveGen() {
