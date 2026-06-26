@@ -15,6 +15,8 @@ add_library(Engine
         include/move.h
         include/perft.h
         include/evaluation.h
+        include/search.h
+        src/search.cpp
 )
 
 # This allows main.cpp to #include "board.h"
