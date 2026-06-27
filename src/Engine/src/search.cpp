@@ -72,8 +72,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     }
     return maxScore;
 }
-
-int bestMoveToPlay = 0; // GUI will read this var when search finishes
+int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
 void searchRoot(Board& board, int depth) {
     int maxScore = -INF;

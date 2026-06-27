@@ -969,10 +969,6 @@ void unmakeMove(uint16_t move, Board& board) {
     int color = (board.sideToMove == COLOR::WHITE) ? COLOR::BLACK : COLOR::WHITE;
     int colorOffset = (color == COLOR::BLACK) ? 6 : 0;
 
-    bool isPromotion = (flag >= PR_KNIGHT && flag <= PC_QUEEN);
-    // If there was a promotion, the piece that moved was a pawn
-    int pieceType = isPromotion ? PIECE_TYPE::Pawn : board.getPieceAt(targetSquare);
-    int bitBoardIndex = pieceType + colorOffset;
 
     // Move history pointer back by 1 to view the game state before this move
     board.historyPly--;
@@ -985,26 +981,26 @@ void unmakeMove(uint16_t move, Board& board) {
     board.sideToMove = color;
     board.fullMoveNumber -= (color == COLOR::BLACK) ? 1 : 0;
 
+    bool isPromotion = (flag >= PR_KNIGHT && flag <= PC_QUEEN);
     // Move the piece back
     if (isPromotion) {
         // Remove the promoted piece
         int promotedPiece = board.getPieceAt(targetSquare);
-        board.pieceBitBoards[promotedPiece + colorOffset] ^= (1ULL << targetSquare);
+        board.pieceBitBoards[promotedPiece] ^= (1ULL << targetSquare);
+
+        // Put the pawn back on the start square
+        board.pieceBitBoards[PIECE_TYPE::Pawn + colorOffset] ^= (1ULL << startSquare);
+
     } else {
         // Normal move
-        board.pieceBitBoards[bitBoardIndex] ^= (1ULL << targetSquare); // Use XOR to remove piece from targetSquare
+        int movingPiece = board.getPieceAt(targetSquare);
+        board.pieceBitBoards[movingPiece] ^= (1ULL << targetSquare);
+        board.pieceBitBoards[movingPiece] ^= (1ULL << startSquare);
     }
-    // Put the moving piece back on the start square
-    board.pieceBitBoards[bitBoardIndex] ^= (1ULL << startSquare);
-
-    // Update occupancies
-    board.occupancies[color] ^= (1ULL << targetSquare) | (1ULL << startSquare);
 
     // reinstate captured piece if there was one
     if (state.capturedPieceType != -1) {
         board.pieceBitBoards[state.capturedPieceType] ^= (1ULL << targetSquare);
-        // update enemy occupancies
-        board.occupancies[color ^ 1] ^= (1ULL << targetSquare);
     }
 
     switch (flag) {
@@ -1014,22 +1010,18 @@ void unmakeMove(uint16_t move, Board& board) {
             if (color == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 7); // Add rook to H1
                 board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 5); // Delete rook on F1
-                board.occupancies[COLOR::WHITE] ^= (1ULL << 7) | (1ULL << 5);
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 63); // Add rook to H8
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 61); // Delete rook on F8
-                board.occupancies[COLOR::BLACK] ^= (1ULL << 63) | (1ULL << 61);
             }
             break;
         case QUEEN_CASTLE:
             if (color == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 0); // Add rook to A1
                 board.pieceBitBoards[PIECE_TYPE::Rook] ^= (1ULL << 3); // Delete rook on D1
-                board.occupancies[COLOR::WHITE] ^= (1ULL << 0) | (1ULL << 3);
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 56); // Add rook to A8
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] ^= (1ULL << 59); // Delete rook on D8
-                board.occupancies[COLOR::BLACK] ^= (1ULL << 56)| (1ULL << 59);
             }
             break;
         // Handle undoing of En Passant
@@ -1037,15 +1029,17 @@ void unmakeMove(uint16_t move, Board& board) {
             if (color == COLOR::WHITE) {
                 int capturedPawnSquare = targetSquare - 8;
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] ^= (1ULL << capturedPawnSquare);
-                board.occupancies[COLOR::BLACK] ^= (1ULL << capturedPawnSquare);
             } else {
                 int capturedPawnSquare = targetSquare + 8;
                 board.pieceBitBoards[PIECE_TYPE::Pawn] ^= (1ULL << capturedPawnSquare);
-                board.occupancies[COLOR::WHITE] ^= (1ULL << capturedPawnSquare);
             }
             break;
     }
     // Final occupancy update
+    board.occupancies[COLOR::WHITE] = 0ULL;
+    board.occupancies[COLOR::BLACK] = 0ULL;
+    for (int i = 0; i < 6; i++) board.occupancies[COLOR::WHITE] |= board.pieceBitBoards[i];
+    for (int i = 6; i < 12; i++) board.occupancies[COLOR::BLACK] |= board.pieceBitBoards[i];
     board.occupancies[COLOR::BOTH] = board.occupancies[COLOR::WHITE] | board.occupancies[COLOR::BLACK];
 }
 // call all builder functions in correct order
