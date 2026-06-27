@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Fetch SFML directory
 include(FetchContent)
+
+set(BUILD_SHARED_LIBS OFF)
 FetchContent_Declare(
         SFML
         GIT_REPOSITORY https://github.com/SFML/SFML.git
