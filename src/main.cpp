@@ -107,7 +107,11 @@ int main() {
         // --- COMPUTERS MOVE (BLACK) ---
         else {
             searchRoot(board, 6); // Chose Depth 6. Smaller depths are faster searches, larger depths are more accurate
-            makeMove(bestMoveToPlay, board);
+            // If the computer attempts an illegal move -> exit
+            if (!makeMove(bestMoveToPlay, board)) {
+                std::cout << "Engine Failed: Attempted illegal move.\n";
+                break;
+            }
             std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +
                 indexToChessNotation(getTarget(bestMoveToPlay));
 

@@ -86,6 +86,11 @@ void searchRoot(Board& board, int depth) {
     for (int i = 0; i < moveList.count; i++) {
         int move = moveList.moves[i];
         if (!makeMove(move, board)) continue;
+
+        // guarantees engine doesn't infintley loop if it knows it is getting checkmated
+        if (bestMoveToPlay == 0) {
+            bestRootMove = move;
+        }
         // pass inverted bounds
         int score = -negamax(board, depth - 1, -beta, -alpha);
 
