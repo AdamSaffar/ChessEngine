@@ -1,9 +1,9 @@
 #include <iostream>
 #include <string>
-#include "Engine/include/board.h"
-#include "Engine/include/moveGeneration.h"
-#include "Engine/include/search.h"
-#include "Engine/include/move.h"
+#include "../Engine/include/board.h"
+#include "../Engine/include/moveGeneration.h"
+#include "../Engine/include/search.h"
+#include "../Engine/include/move.h"
 
 
 // Helper func to translate square index to chess notation(12 -> "e2")
