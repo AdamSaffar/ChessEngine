@@ -14,7 +14,8 @@ std::string indexToChessNotation(int sq) {
     return result;
 }
 // Helper func to parse users move
-bool parseUserMove(std::string input, int& start, int& target, int color) { // User input example: "e2e3"
+bool parseUserMove(std::string input, int& start, int& target, int color, char& promotedPiece) { // User input example: "e2e3"
+    promotedPiece = ' '; // default to no promotion
     // Queen Side Castle
     if (input == "O-O-O") {
         start = (color == COLOR::WHITE) ? 4 : 60; // e1 or e8
@@ -39,6 +40,11 @@ bool parseUserMove(std::string input, int& start, int& target, int color) { // U
     // pass board index for start and end squares
     start = startRank * 8 + startFile;
     target = targetRank * 8 + targetFile;
+
+    // Promotion check
+    if (input.length() >= 5) {
+        promotedPiece = std::tolower(input[4]); // example input: e7e8q
+    }
     return true;
 }
 int main() {
@@ -46,7 +52,8 @@ int main() {
     initAllMoveGen();
     // init board
     Board board;
-    board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // put all pieces on their starting squares
+    //board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // put all pieces on their starting squares
+    board.parseFEN("8/7P/8/2k3K1/6R1/8/6P1/8 w - - 0 1");
     std::cout << "=====================================\n";
     std::cout << "      CHESS ENGINE TERMINAL          \n";
     std::cout << "=====================================\n";
@@ -85,17 +92,34 @@ int main() {
 
             if (input == "quit") break;
             int start, target;
+            char promotedPiece;
 
-            if (!parseUserMove(input, start, target, board.getSideToMove())) {
+            if (!parseUserMove(input, start, target, board.getSideToMove(), promotedPiece)) {
                 std::cout << "Invalid Move. Try again. \n";
                 continue;
             }
             int userMove = 0;
             // Find the users move in the move list that contains all possible moves for Human
             for (int i = 0; i < moveList.count; i++) {
-                if (getStart(moveList.moves[i]) == start && getTarget(moveList.moves[i]) == target) {
-                    userMove = moveList.moves[i];
-                    break; // exit loop since we found users move
+                int currentMove = moveList.moves[i];
+                int currentFlag = getFlag(moveList.moves[i]);
+                if (getStart(currentMove) == start && getTarget(currentMove) == target) {
+                    bool isPromotion =  (currentFlag >= PR_KNIGHT && currentFlag <= PC_QUEEN);
+                    if (isPromotion) {
+                        bool wantsQueen = (promotedPiece == 'q' && (currentFlag == PR_QUEEN || currentFlag == PC_QUEEN));
+                        bool wantsRook = (promotedPiece == 'r' && (currentFlag == PR_ROOK || currentFlag == PC_ROOK));
+                        bool wantsBishop = (promotedPiece == 'b' && (currentFlag == PR_BISHOP || currentFlag == PC_BISHOP));
+                        bool wantsKnight = (promotedPiece == 'n' && (currentFlag == PR_KNIGHT || currentFlag == PC_KNIGHT));
+
+                        if (wantsQueen || wantsRook || wantsBishop || wantsKnight) {
+                            userMove = currentMove;
+                            break; // found correct promotion
+                        }
+                    } else {
+                        // Non-promotion move
+                        userMove = currentMove;
+                        break; // exit loop since we found users move
+                    }
                 }
             }
             // Make users move if it was found
