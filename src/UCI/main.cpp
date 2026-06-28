@@ -3,6 +3,7 @@
 //
 #include <iostream>
 #include <string>
+#include <vector>
 #include <sstream>
 #include "../Engine/include/board.h"
 #include "../Engine/include/moveGeneration.h"
@@ -16,14 +17,36 @@ void printEngineInfo() {
     std::cout << "uciok\n";
 }
 
-void parseMove(std::string input) {
+// Helper func to parse users move
+void parseMove(std::string input, int& start, int& target, char& promotedPiece) { // User input example: "e2e3"
+    promotedPiece = ' '; // default to no promotion
+    //if (input.length() < 4) return false; // safety check
 
+    // Standard move decoding
+    int startFile = input[0] - 'a';
+    int startRank = input[1] - '1';
+    int targetFile = input[2] - 'a';
+    int targetRank = input[3] - '1';
+
+    // if (startFile < 0 || startFile > 7 || startRank < 0 || startRank > 7) return false;
+    //if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) return false;
+
+    // pass board index for start and end squares
+    start = startRank * 8 + startFile;
+    target = targetRank * 8 + targetFile;
+
+    // Promotion check
+    if (input.length() >= 5) {
+        promotedPiece = std::tolower(input[4]); // example input: e7e8q
+    }
+    //return true;
 }
+
+
 int main() {
     // Initialize Engine
     initAllMoveGen();
     Board board;
-
     std::string line;
     // Infinite CLI loop
     while (std::getline(std::cin, line)) {
@@ -39,7 +62,67 @@ int main() {
         } else if (command == "isready") {
             std::cout << "readyok\n";
         } else if (command == "position") {
-            // TODO: Parse startpos string and update board
+            std::string setupToken;
+            iss >> setupToken;
+            if (setupToken == "startpos") {
+                // reset board
+                board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                std::string skip;
+                iss >> skip;; // skip word "moves"
+            }
+            else if (setupToken == "fen") {
+                std::string fen = "", fenToken;
+                for (int i = 0; i < 6; i++) {
+                    iss >> fenToken;
+                    fen += fenToken + " ";
+                }
+                board.parseFEN(fen);
+                std::string skip;
+                iss >> skip; // skip word "moves"
+            }
+
+            std::string moveString;// Stores entire move history
+            // loops through every move word
+            while (iss >> moveString) {
+                int start, target;
+                char promotedPiece;
+                parseMove(moveString, start, target, promotedPiece);
+
+                // Generate moves for current board state
+                MoveList moveList;
+                generateMoves(moveList, board);
+
+                int playMove = 0;
+                // Find the played move in the move list that contains all possible moves
+                for (int i = 0; i < moveList.count; i++) {
+                    int currentMove = moveList.moves[i];
+                    int currentFlag = getFlag(moveList.moves[i]);
+                    if (getStart(currentMove) == start && getTarget(currentMove) == target) {
+                        bool isPromotion = (currentFlag >= PR_KNIGHT && currentFlag <= PC_QUEEN);
+                        if (isPromotion) {
+                            bool wantsQueen = (promotedPiece == 'q' && (currentFlag == PR_QUEEN || currentFlag == PC_QUEEN));
+                            bool wantsRook = (promotedPiece == 'r' && (currentFlag == PR_ROOK || currentFlag == PC_ROOK));
+                            bool wantsBishop = (promotedPiece == 'b' && (currentFlag == PR_BISHOP || currentFlag == PC_BISHOP));
+                            bool wantsKnight = (promotedPiece == 'n' && (currentFlag == PR_KNIGHT || currentFlag == PC_KNIGHT));
+
+                            if (wantsQueen || wantsRook || wantsBishop || wantsKnight) {
+                                playMove = currentMove;
+                                break; // found correct promotion
+                            }
+                        } else {
+                            // Non-promotion move
+                            playMove = currentMove;
+                            break; // exit loop since we found users move
+                        }
+                    }
+                }
+                // Play move on board
+                if (playMove != 0) {
+                    makeMove(playMove, board);
+                } else {
+                    std::cout << "Invalid string: " << moveString << "\n";
+                }
+            }
         } else if (command == "go") {
             // TODO: Call searchRoot() and print bestMoveToPlay
         }
