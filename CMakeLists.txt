@@ -24,3 +24,7 @@ target_link_libraries(ChessCLI PRIVATE Engine)
 
 add_executable(ChessGUI src/GUI/main.cpp)
 target_link_libraries(ChessGUI PRIVATE Engine sfml-graphics sfml-window sfml-system)
+
+add_executable(ChessUCI src/UCI/main.cpp
+        src/UCI/main.cpp)
+target_link_libraries(ChessUCI PRIVATE Engine)
