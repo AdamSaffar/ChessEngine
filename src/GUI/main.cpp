@@ -31,7 +31,9 @@ void drawBoard(sf::RenderWindow& window, float squareSize) {
     }
 }
 
-void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& board, float squareSize) {
+void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& board, float squareSize,
+                bool isDragging, int startSquare, int draggedPiece) {
+
     float sourceSpriteSize = 140.0f; // Sprite sheet has pieces that are exactly 140x140 pixels
 
     // Calculate how much to shrink or grow the sprite to match the current board size
@@ -49,7 +51,10 @@ void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& boar
         if (currentPiece == -1) {
             continue;
         }
-
+        // If we are dragging this specific piece, DO NOT DRAW it on the board
+        if (isDragging && sq == startSquare) {
+            continue;
+        }
         int col = sq % 8;
         int row = 7 - (sq / 8); // invert row
 
@@ -66,6 +71,24 @@ void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& boar
         pieceSprite.setTextureRect(sf::IntRect(spriteX, spriteY, sourceSpriteSize, sourceSpriteSize));
         // position
         pieceSprite.setPosition(col * squareSize, row * squareSize);
+        window.draw(pieceSprite);
+    }
+
+    // DRAWING DRAGGED PIECE ON TOP
+    if (isDragging && draggedPiece != -1) {
+        // grab live mouse position
+        sf::Vector2i mousePixelPos = sf::Mouse::getPosition(window);
+        sf::Vector2f mouseWorldPos = window.mapPixelToCoords(mousePixelPos);
+
+        // find correct sprite sheet
+        int pieceColor = draggedPiece / 6;
+        int pieceType = draggedPiece % 6;
+        int spriteX = pieceType * sourceSpriteSize;
+        int spriteY = pieceColor * sourceSpriteSize;
+
+        pieceSprite.setTextureRect(sf::IntRect(spriteX, spriteY, sourceSpriteSize, sourceSpriteSize));
+        // offset the sprite by half the square size so the mouse holds the piece!
+        pieceSprite.setPosition(mouseWorldPos.x - (squareSize / 2.0f), mouseWorldPos.y - (squareSize / 2.0f));
         window.draw(pieceSprite);
     }
 
@@ -136,7 +159,7 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
-            searchRoot(board, 5); // CALL SEARCH FUNCTION
+            searchRoot(board, 6); // CALL SEARCH FUNCTION
             // If the computer attempts an illegal move -> exit
             if (!makeMove(bestMoveToPlay, board)) {
                 std::cout << "Engine Failed: Attempted illegal move.\n";
@@ -254,7 +277,7 @@ int main() {
         /* Draw to window */
         window.setView(boardView); // Apply the view
         drawBoard(window, squareSize); // Draw board
-        drawPieces(window, spriteSheet, board, squareSize); // Draw pieces
+        drawPieces(window, spriteSheet, board, squareSize, isDragging, startSquare, draggedPiece); // Draw pieces
 
         window.display();
     }
