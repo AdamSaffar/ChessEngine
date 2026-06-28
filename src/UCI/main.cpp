@@ -10,6 +10,15 @@
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
 
+
+
+// Helper func to translate square index to chess notation(12 -> "e2")
+std::string indexToChessNotation(int sq) {
+    std::string result = "";
+    result += (char)('a' + (sq % 8)); // File
+    result += (char)('1' + (sq / 8)); // Rank
+    return result;
+}
 // required for UCI identification
 void printEngineInfo() {
     std::cout << "id name Dummy\n";
@@ -124,7 +133,27 @@ int main() {
                 }
             }
         } else if (command == "go") {
-            // TODO: Call searchRoot() and print bestMoveToPlay
+            // find best move
+            searchRoot(board, 5);
+
+            // translate start and target squares
+            std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +
+                                       indexToChessNotation(getTarget(bestMoveToPlay));
+
+            // handle promotion flags
+            int flag = getFlag(bestMoveToPlay);
+            if (flag == PR_QUEEN || flag == PC_QUEEN) {
+                computerMove += 'q';
+            } else if (flag == PR_ROOK || flag == PC_ROOK) {
+                computerMove += 'r';
+            } else if (flag == PR_BISHOP || flag == PC_BISHOP) {
+                computerMove += 'b';
+            } else if (flag == PR_KNIGHT || flag == PC_KNIGHT) {
+                computerMove += 'n';
+            }
+
+            // Send the move to console
+            std::cout << "bestmove " << computerMove << "\n";
         }
     }
 
