@@ -104,7 +104,7 @@ int main() {
                 int currentMove = moveList.moves[i];
                 int currentFlag = getFlag(moveList.moves[i]);
                 if (getStart(currentMove) == start && getTarget(currentMove) == target) {
-                    bool isPromotion =  (currentFlag >= PR_KNIGHT && currentFlag <= PC_QUEEN);
+                    bool isPromotion = (currentFlag >= PR_KNIGHT && currentFlag <= PC_QUEEN);
                     if (isPromotion) {
                         bool wantsQueen = (promotedPiece == 'q' && (currentFlag == PR_QUEEN || currentFlag == PC_QUEEN));
                         bool wantsRook = (promotedPiece == 'r' && (currentFlag == PR_ROOK || currentFlag == PC_ROOK));

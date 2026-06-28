@@ -74,6 +74,7 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     Board board;
+
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
 
     sf::RenderWindow window(sf::VideoMode::getDesktopMode(), "Chess Game");
@@ -103,8 +104,45 @@ int main() {
     // !IMPORTANT: Smoothes out scaled pixels(pieces can look very pixelated without)
     spriteSheet.setSmooth(true);
 
+    /* Tracking variables */
+    bool isDragging = false; // track if piece is currently picked up
+    int startSquare = -1; // remember which square the piece was picked up from
+    int targetSquare = -1;
+    int draggedPiece = -1; // remember what piece is being dragged
     // run the program as long as the window is open
     while (window.isOpen()) {
+        MoveList moveList;
+        generateMoves(moveList, board);
+        // check if game is over
+        int legalMoves = 0;
+        for (int i = 0; i < moveList.count; i++) {
+            if (makeMove(moveList.moves[i], board)) {
+                legalMoves++;
+                unmakeMove(moveList.moves[i], board);
+            }
+        }
+        if (legalMoves == 0) {
+            int kingPiece = (board.getSideToMove() == COLOR::WHITE) ? PIECE_TYPE::King : PIECE_TYPE::King + 6;
+            int kingSquare = __builtin_ctzll(board.getPieceBitBoard(kingPiece));
+
+            // if legalMoves = 0 and the king is attacked -> CHECKMATE
+            if (board.isSquareAttacked(kingSquare, board.getSideToMove() ^ 1)) {
+                std::cout << "CHECKMATE! Game Over. \n";
+            // If legalMoves = 0 and the king is not attacked -> STALEMATE
+            } else {
+                std::cout << "STALEMATE! Game Over. \n";
+            }
+            break;
+        }
+        // --- ENGINES TURN ---
+        if (board.getSideToMove() == COLOR::BLACK) {
+            searchRoot(board, 5); // CALL SEARCH FUNCTION
+            // If the computer attempts an illegal move -> exit
+            if (!makeMove(bestMoveToPlay, board)) {
+                std::cout << "Engine Failed: Attempted illegal move.\n";
+                break;
+            }
+        }
         // Check all the window events that were triggered since the last iteration of the loop
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -132,8 +170,80 @@ int main() {
                 }
                 case sf::Event::MouseButtonPressed:
                     if (event.mouseButton.button == sf::Mouse::Left) {
-                        int mouseX = event.mouseButton.x;
-                        int mouseY = event.mouseButton.y;
+                        // grab coords from mouse click
+                        sf::Vector2i pixelPos(event.mouseButton.x, event.mouseButton.y);
+                        sf::Vector2f worldPos = window.mapPixelToCoords(pixelPos, boardView);
+
+                        // check if the click falls inside the chess board
+                        if (worldPos.x >= 0 && worldPos.x < boardTotalSize && worldPos.y >= 0 && worldPos.y < boardTotalSize) {
+                            int clickedCol = static_cast<int>(worldPos.x / squareSize);
+                            int clickedRow = static_cast<int>(worldPos.y / squareSize);
+                            // Calculate the exact square the user clicked on
+                            int clickedSquareIndex = (7 - clickedRow) * 8 + clickedCol;
+
+                            draggedPiece = board.getPieceAt(clickedSquareIndex);
+                            // only pick up of there is actually a piece there
+                            if (draggedPiece != -1) {
+                                // Set trackers
+                                isDragging = true;
+                                startSquare = clickedSquareIndex;
+                            }
+                        }
+                    }
+                    break;
+                // track coords of released piece
+                case sf::Event::MouseButtonReleased:
+                    // If its humans move
+                    if (event.mouseButton.button == sf::Mouse::Left && isDragging) {
+                        // Drop piece so we dont infinitenly drag
+                        isDragging = false;
+                        if (board.getSideToMove() == COLOR::WHITE) {
+                            sf::Vector2i pixelPos(event.mouseButton.x, event.mouseButton.y);
+                            sf::Vector2f worldPos = window.mapPixelToCoords(pixelPos, boardView);
+                            // check if the dropped piece falls within the board
+                            if (worldPos.x >= 0 && worldPos.x < boardTotalSize && worldPos.y >= 0 && worldPos.y < boardTotalSize) {
+                                int droppedCol = static_cast<int>(worldPos.x / squareSize);
+                                int droppedRow = static_cast<int>(worldPos.y / squareSize);
+                                // Calculate the exact square the user clicked on
+                                targetSquare = (7 - droppedRow) * 8 + droppedCol;
+
+                                int userMove = 0;
+                                // Find the users move in the move list that contains all possible moves for Human
+                                for (int i = 0; i < moveList.count; i++) {
+                                    int currentMove = moveList.moves[i];
+                                    int currentFlag = getFlag(moveList.moves[i]);
+                                    if (getStart(currentMove) == startSquare && getTarget(currentMove) == targetSquare) {
+                                        bool isPromotion =  (currentFlag >= PR_KNIGHT && currentFlag <= PC_QUEEN);
+                                        if (isPromotion) {
+                                            char promotedPiece = ' ';
+                                            std::cout << "Promotion  (q, r, b, n): ";
+                                            std::cin >> promotedPiece;
+                                            bool wantsQueen = (promotedPiece == 'q' && (currentFlag == PR_QUEEN || currentFlag == PC_QUEEN));
+                                            bool wantsRook = (promotedPiece == 'r' && (currentFlag == PR_ROOK || currentFlag == PC_ROOK));
+                                            bool wantsBishop = (promotedPiece == 'b' && (currentFlag == PR_BISHOP || currentFlag == PC_BISHOP));
+                                            bool wantsKnight = (promotedPiece == 'n' && (currentFlag == PR_KNIGHT || currentFlag == PC_KNIGHT));
+
+                                            if (wantsQueen || wantsRook || wantsBishop || wantsKnight) {
+                                                userMove = currentMove;
+                                                break; // found correct promotion
+                                            }
+                                        } else {
+                                            // Non-promotion move
+                                            userMove = currentMove;
+                                            break; // exit loop since we found users move
+                                        }
+                                    }
+                                }
+                                // Make users move if it was found
+                                if (userMove != 0) {
+                                    if (!makeMove(userMove, board)) {
+                                        std::cout << "Illegal Move!\n";
+                                    }
+                                } else {
+                                    std::cout << "Invalid Move!\n";
+                                }
+                            }
+                        }
                     }
                     break;
             }
