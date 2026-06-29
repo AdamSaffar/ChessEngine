@@ -10,6 +10,7 @@
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
+#include "../Engine/include/transposition.h"
 
 
 // Helper func to translate square index to chess notation(12 -> "e2")
@@ -56,7 +57,7 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
-    
+    initTT(64);
     Board board;
     std::string line;
     // Infinite CLI loop
@@ -156,6 +157,21 @@ int main() {
 
             // Send the move to console
             std::cout << "bestmove " << computerMove << std::endl;
+        }  else if (command == "setoption") {
+            std::string skip;
+            std::string optionToken, valToken, newTTSize;
+            iss >> skip; // skip "name"
+            iss >> optionToken >> valToken; // reads "Hash" and "value"
+            if (optionToken == "Hash" && valToken == "value") {
+                iss >> newTTSize;
+                try {
+                    int targetMB = std::stoi(newTTSize);
+                    initTT(std::stoi(newTTSize));// resize transposition table
+                } catch (const std::exception& e) {
+                    // safety catch incase std::stoi fails
+                    std::cout << "Error resizing hash" << std::endl;
+                }
+            }
         }
     }
 

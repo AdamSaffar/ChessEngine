@@ -5,6 +5,7 @@
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
+#include "../Engine/include/transposition.h"
 
 
 // Helper func to translate square index to chess notation(12 -> "e2")
@@ -52,6 +53,7 @@ int main() {
     // Calculate all attack tables and magic bitboards
     initAllMoveGen();
     initZobrist(); // init random hash keys
+    initTT(64);
     // init board
     Board board;
     //board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // put all pieces on their starting squares

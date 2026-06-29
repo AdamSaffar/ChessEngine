@@ -19,6 +19,8 @@ add_library(Engine
         src/search.cpp
         include/zobrist.h
         src/zobrist.cpp
+        include/transposition.h
+        src/transposition.cpp
 )
 
 # This allows main.cpp to #include "board.h"

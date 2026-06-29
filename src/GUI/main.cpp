@@ -9,6 +9,7 @@
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
+#include "../Engine/include/transposition.h"
 
 void drawBoard(sf::RenderWindow& window, float squareSize) {
     // Chess.com theme colors
@@ -98,6 +99,7 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
+    initTT(64);
 
     Board board;
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
