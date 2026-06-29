@@ -21,6 +21,46 @@ const int MVV_LVA[6][6] = {
     {0, 0, 0, 0, 0, 0} // Victim: King
 };
 
+int scoreMove(int move, Board& board) {
+    int flag = getFlag(move);
+    bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || flag >= PC_KNIGHT && flag <= PC_KNIGHT);
+
+    if (!isCapture) {
+        return 0; // Non-capture moves get sorted to back
+    }
+
+    int start = getStart(move);
+    int target = getTarget(move);
+
+    // En Passant Logic(Target square is empty, handle separately)
+    if (flag == EN_PASSANT) {
+        // Always pawn attacking pawn
+        return MVV_LVA[PIECE_TYPE::Pawn][PIECE_TYPE::Pawn];
+    }
+
+    // Extract piece type
+    int attacker = board.getPieceAt(start) % 6;
+    int victim = board.getPieceAt(target) % 6;
+
+    // return score from lookup table
+    return MVV_LVA[victim][attacker];
+}
+// Insertion sort Algorithm(from largest to smallest scores) to sort move order
+void sortMoves(MoveList& moveList, int moveScores[]) {
+    for (int i = 1; i < moveList.count; i++) {
+        int keyScore = moveScores[i];
+        int keyMove = moveList.moves[i];
+        int j = i - 1;
+
+        while (j >= 0 && moveScores[j] < keyScore) {
+            moveScores[j + 1] = moveScores[j]; // shift score
+            moveList.moves[j + 1] = moveList.moves[j]; // shift the associated move
+            j--;
+        }
+        moveScores[j + 1] = keyScore;
+        moveList.moves[j + 1] = keyMove;
+    }
+}
 /** Core recursive search tree using the Negamax algorithm.
  * Explores the game tree using Depth-First search,
  * Negamax assumes every node wants to maximize its own score.
@@ -38,6 +78,15 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     MoveList moveList;
     generateMoves(moveList, board);
 
+    // Score every move
+    int moveScores[256];
+    for (int i = 0; i < moveList.count ; i++) {
+        moveScores[i] = scoreMove(moveList.moves[i], board);
+    }
+    // Sort move list based on scores(highest to lowest)
+    sortMoves(moveList, moveScores);
+
+    // Apply evaluation on sorted move list
     for (int i = 0; i < moveList.count; i++) {
         int move = moveList.moves[i];
 
@@ -85,6 +134,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     }
     return maxScore;
 }
+
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
 void searchRoot(Board& board, int depth) {
@@ -93,8 +143,17 @@ void searchRoot(Board& board, int depth) {
 
     int alpha = -INF;
     int beta = INF;
+
     MoveList moveList;
     generateMoves(moveList, board);
+
+    // Score every move
+    int moveScores[256];
+    for (int i = 0; i < moveList.count ; i++) {
+        moveScores[i] = scoreMove(moveList.moves[i], board);
+    }
+    // Sort move list based on scores(highest to lowest)
+    sortMoves(moveList, moveScores);
 
     for (int i = 0; i < moveList.count; i++) {
         int move = moveList.moves[i];

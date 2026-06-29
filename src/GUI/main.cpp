@@ -159,7 +159,7 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
-            searchRoot(board, 6); // CALL SEARCH FUNCTION
+            searchRoot(board, 7); // CALL SEARCH FUNCTION
             // If the computer attempts an illegal move -> exit
             if (!makeMove(bestMoveToPlay, board)) {
                 std::cout << "Engine Failed: Attempted illegal move.\n";
