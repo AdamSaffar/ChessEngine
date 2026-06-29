@@ -53,7 +53,7 @@ int main() {
     // init board
     Board board;
     //board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // put all pieces on their starting squares
-    board.parseFEN("8/7P/8/2k3K1/6R1/8/6P1/8 w - - 0 1");
+    board.parseFEN("6kB/8/3N3Q/2Pb4/p6P/P7/3K4/R7 w - - 0 40");
     std::cout << "=====================================\n";
     std::cout << "      CHESS ENGINE TERMINAL          \n";
     std::cout << "=====================================\n";

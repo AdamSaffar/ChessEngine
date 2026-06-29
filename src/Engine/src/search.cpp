@@ -8,6 +8,19 @@
 #include <include/move.h>
 #include <include/moveGeneration.h>
 
+// Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
+// Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
+// Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
+const int MVV_LVA[6][6] = {
+    // Attacker: P N B R Q K
+    {105, 104, 103, 102, 101, 100}, // Victim: Pawn
+    {205, 204, 203, 202, 201, 200}, // Victim: Knight
+    {305, 304, 303, 302, 301, 300}, // Victim: Bishop
+    {405, 404, 403, 402, 401, 400}, // Victim: Rook
+    {505, 504, 503, 502, 501, 500}, // Victim: Queen
+    {0, 0, 0, 0, 0, 0} // Victim: King
+};
+
 /** Core recursive search tree using the Negamax algorithm.
  * Explores the game tree using Depth-First search,
  * Negamax assumes every node wants to maximize its own score.
@@ -88,7 +101,7 @@ void searchRoot(Board& board, int depth) {
         if (!makeMove(move, board)) continue;
 
         // guarantees engine doesn't infintley loop if it knows it is getting checkmated
-        if (bestMoveToPlay == 0) {
+        if (bestRootMove == 0) {
             bestRootMove = move;
         }
         // pass inverted bounds

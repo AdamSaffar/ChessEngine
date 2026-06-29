@@ -21,9 +21,9 @@ std::string indexToChessNotation(int sq) {
 }
 // required for UCI identification
 void printEngineInfo() {
-    std::cout << "id name Dummy\n";
-    std::cout << "id author Adam S\n";
-    std::cout << "uciok\n";
+    std::cout << "id name Dummy" << std::endl;
+    std::cout << "id author Adam S" << std::endl;
+    std::cout << "uciok" << std::endl;
 }
 
 // Helper func to parse users move
@@ -69,7 +69,7 @@ int main() {
         } else if (command == "uci"){
             printEngineInfo();
         } else if (command == "isready") {
-            std::cout << "readyok\n";
+            std::cout << "readyok" << std::endl;
         } else if (command == "position") {
             std::string setupToken;
             iss >> setupToken;
@@ -129,7 +129,7 @@ int main() {
                 if (playMove != 0) {
                     makeMove(playMove, board);
                 } else {
-                    std::cout << "Invalid string: " << moveString << "\n";
+                    std::cout << "Invalid string: " << moveString << std::endl;
                 }
             }
         } else if (command == "go") {
@@ -153,7 +153,7 @@ int main() {
             }
 
             // Send the move to console
-            std::cout << "bestmove " << computerMove << "\n";
+            std::cout << "bestmove " << computerMove << std::endl;
         }
     }
 
