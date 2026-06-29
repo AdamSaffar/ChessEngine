@@ -17,6 +17,8 @@ add_library(Engine
         include/evaluation.h
         include/search.h
         src/search.cpp
+        include/zobrist.h
+        src/zobrist.cpp
 )
 
 # This allows main.cpp to #include "board.h"

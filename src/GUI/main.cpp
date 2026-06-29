@@ -8,6 +8,7 @@
 #include "../Engine/include/moveGeneration.h"
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
+#include "../Engine/include/zobrist.h"
 
 void drawBoard(sf::RenderWindow& window, float squareSize) {
     // Chess.com theme colors
@@ -96,8 +97,9 @@ void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& boar
 int main() {
     // Initialize Engine
     initAllMoveGen();
-    Board board;
+    initZobrist(); // init random hash keys
 
+    Board board;
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
 
     sf::RenderWindow window(sf::VideoMode::getDesktopMode(), "Chess Game");

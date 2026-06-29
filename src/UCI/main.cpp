@@ -9,7 +9,7 @@
 #include "../Engine/include/moveGeneration.h"
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
-
+#include "../Engine/include/zobrist.h"
 
 
 // Helper func to translate square index to chess notation(12 -> "e2")
@@ -55,6 +55,8 @@ void parseMove(std::string input, int& start, int& target, char& promotedPiece) 
 int main() {
     // Initialize Engine
     initAllMoveGen();
+    initZobrist(); // init random hash keys
+    
     Board board;
     std::string line;
     // Infinite CLI loop
