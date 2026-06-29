@@ -13,4 +13,5 @@ extern U64 castleKeys[16];
 extern U64 sideKey;
 
 void initZobrist();
+U64 generateHashKey(const Board& board);
 #endif //CHESSENGINE_ZOBRIST_H

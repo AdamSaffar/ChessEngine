@@ -3,7 +3,7 @@
 //
 #include <random>
 #include "include/zobrist.h"
-
+#include "include/board.h"
 U64 pieceKeys[12][64];
 U64 enPassantKeys[64];
 U64 castleKeys[16];
@@ -37,4 +37,42 @@ void initZobrist() {
     // Fill side to move key
     sideKey = getRandomU64();
 
+}
+
+/** Generate Zobrist Key(Will run this func exactly once after passing initial board setup)
+ * No matter how many times this func is run, it will generate the same key every time
+ * since we passed a fixed seed
+ */
+U64 generateHashKey(const Board& board) {
+    U64 finalKey = 0;
+
+    // XOR the pieces
+    for (int piece = 0; piece < 12; piece++) {
+        U64 bitboard = board.getPieceBitBoard(piece);
+        while (bitboard) {
+            int square = __builtin_ctzll(bitboard);
+            finalKey ^= pieceKeys[piece][square];
+
+            bitboard &= bitboard - 1;
+        }
+    }
+
+    // XOR the pieces
+    int enPassantSquare = board.getEnpassantSquare();
+    if (enPassantSquare != -1) {
+        finalKey ^= enPassantKeys[enPassantSquare];
+    }
+
+    // XOR castling right
+    int castlingRights = board.getCastlingRights();
+    finalKey ^= castleKeys[castlingRights];
+
+    // XOR side to move
+    int sideToMove = board.getSideToMove();
+    // Only XOR sidekey if its blacks turn
+    if (board.getSideToMove() == COLOR::BLACK) {
+        finalKey ^= sideKey;
+    }
+
+    return finalKey;
 }

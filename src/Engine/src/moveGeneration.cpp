@@ -4,6 +4,7 @@
 #include "include/moveGeneration.h"
 #include "include/board.h"
 #include "include/magics.h"
+#include "include/zobrist.h"
 #include <vector>
 #include <bit>
 #include <iostream>
@@ -837,16 +838,29 @@ bool makeMove(uint16_t move, Board& board) {
     board.history[board.historyPly].enPassantSquare = board.enPassantSquare;
     board.history[board.historyPly].halfMoveClock = board.halfMoveClock;
     board.history[board.historyPly].capturedPieceType = capturedPiece;
+    board.history[board.historyPly].hashKey = board.hashKey;
     board.historyPly++;
+
+    // XOR old global states before changing them
+    if (board.enPassantSquare != -1) {
+        board.hashKey ^= enPassantKeys[board.enPassantSquare];
+    }
+    board.hashKey ^= castleKeys[board.castlingRights];
 
     // safety check
     if (capturedPiece != -1) {
         // turn off the bit for the captured piece on target square
         board.pieceBitBoards[capturedPiece] &= ~(1ULL << targetSquare);
+        // Remove captured piece
+        board.hashKey ^= pieceKeys[capturedPiece][targetSquare];
     }
     // Pick up and put down piece
     board.pieceBitBoards[pieceType] &= ~(1ULL << startSquare); // Turn off start
     board.pieceBitBoards[pieceType] |= (1ULL << targetSquare); // Turn on target
+
+    // Move the piece
+    board.hashKey ^= pieceKeys[pieceType][startSquare];
+    board.hashKey ^= pieceKeys[pieceType][targetSquare];
 
     // Defaults to none every turn, unless flag is Double Pawn Push
     board.enPassantSquare = -1;
@@ -869,18 +883,26 @@ bool makeMove(uint16_t move, Board& board) {
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Rook] &= ~(1ULL << 7); // Pick up H1
                 board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << 5); // Put down F1
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook][7];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook][5];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] &= ~(1ULL << 63); // Pick up H8
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << 61); // Put down F8
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook + 6][63];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook + 6][61];
             }
             break;
         case QUEEN_CASTLE:
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Rook] &= ~(1ULL << 0); // Pick up A1
                 board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << 3); // Put down D1
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook][0];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook][3];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] &= ~(1ULL << 56); // Pick up A8
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << 59); // Put down D8
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook + 6][56];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook + 6][59];
             }
             break;
         case EN_PASSANT:
@@ -888,10 +910,12 @@ bool makeMove(uint16_t move, Board& board) {
                 int capturedPawnSquare = targetSquare - 8;
                 // white pawn captures black pawn
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << capturedPawnSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn + 6][capturedPawnSquare];
             } else {
                 int capturedPawnSquare = targetSquare + 8;
                 // black pawn captures white pawn
                 board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << capturedPawnSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn][capturedPawnSquare];
             }
             break;
         // We treat promotional captures and standard promotions the same here, so we stack them
@@ -900,9 +924,13 @@ bool makeMove(uint16_t move, Board& board) {
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
                 board.pieceBitBoards[PIECE_TYPE::Knight] |= (1ULL << targetSquare); // Spawn replacement Knight
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Knight][targetSquare];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
                 board.pieceBitBoards[PIECE_TYPE::Knight + 6] |= (1ULL << targetSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn + 6][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Knight + 6][targetSquare];
             }
             break;
         case PR_BISHOP:
@@ -910,9 +938,13 @@ bool makeMove(uint16_t move, Board& board) {
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
                 board.pieceBitBoards[PIECE_TYPE::Bishop] |= (1ULL << targetSquare); // Spawn replacement Bishop
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Bishop][targetSquare];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
                 board.pieceBitBoards[PIECE_TYPE::Bishop + 6] |= (1ULL << targetSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn + 6][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Bishop + 6][targetSquare];
             }
             break;
         case PR_ROOK:
@@ -920,9 +952,13 @@ bool makeMove(uint16_t move, Board& board) {
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
                 board.pieceBitBoards[PIECE_TYPE::Rook] |= (1ULL << targetSquare); // Spawn replacement Rook
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook][targetSquare];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
                 board.pieceBitBoards[PIECE_TYPE::Rook + 6] |= (1ULL << targetSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn + 6][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Rook + 6][targetSquare];
             }
             break;
         case PR_QUEEN:
@@ -930,9 +966,13 @@ bool makeMove(uint16_t move, Board& board) {
             if (sideToMove == COLOR::WHITE) {
                 board.pieceBitBoards[PIECE_TYPE::Pawn] &= ~(1ULL << targetSquare); // Delete the Pawn
                 board.pieceBitBoards[PIECE_TYPE::Queen] |= (1ULL << targetSquare); // Spawn replacement Queen
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Queen][targetSquare];
             } else {
                 board.pieceBitBoards[PIECE_TYPE::Pawn + 6] &= ~(1ULL << targetSquare);
                 board.pieceBitBoards[PIECE_TYPE::Queen + 6] |= (1ULL << targetSquare);
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Pawn + 6][targetSquare];
+                board.hashKey ^= pieceKeys[PIECE_TYPE::Queen + 6][targetSquare];
             }
             break;
     }
@@ -944,7 +984,12 @@ bool makeMove(uint16_t move, Board& board) {
     board.occupancies[COLOR::BOTH] = board.occupancies[COLOR::WHITE] | board.occupancies[COLOR::BLACK];
 
     board.sideToMove ^= 1;
-
+    // apply new global states
+    if (board.enPassantSquare != -1) {
+        board.hashKey ^= enPassantKeys[board.enPassantSquare];
+    }
+    board.hashKey = castleKeys[board.castlingRights];
+    board.hashKey = sideKey;
     // KING SAFETY CHECKS!
     int ourColor = board.sideToMove ^ 1;
 
@@ -969,7 +1014,6 @@ void unmakeMove(uint16_t move, Board& board) {
     int color = (board.sideToMove == COLOR::WHITE) ? COLOR::BLACK : COLOR::WHITE;
     int colorOffset = (color == COLOR::BLACK) ? 6 : 0;
 
-
     // Move history pointer back by 1 to view the game state before this move
     board.historyPly--;
     GameState state = board.history[board.historyPly];
@@ -979,6 +1023,7 @@ void unmakeMove(uint16_t move, Board& board) {
     board.enPassantSquare = state.enPassantSquare;
     board.halfMoveClock = state.halfMoveClock;
     board.sideToMove = color;
+    board.hashKey = state.hashKey; // restore zobrist key
     board.fullMoveNumber -= (color == COLOR::BLACK) ? 1 : 0;
 
     bool isPromotion = (flag >= PR_KNIGHT && flag <= PC_QUEEN);
@@ -990,7 +1035,6 @@ void unmakeMove(uint16_t move, Board& board) {
 
         // Put the pawn back on the start square
         board.pieceBitBoards[PIECE_TYPE::Pawn + colorOffset] ^= (1ULL << startSquare);
-
     } else {
         // Normal move
         int movingPiece = board.getPieceAt(targetSquare);

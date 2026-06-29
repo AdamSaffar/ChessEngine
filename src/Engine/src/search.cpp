@@ -7,7 +7,7 @@
 #include <include/evaluation.h>
 #include <include/move.h>
 #include <include/moveGeneration.h>
-
+#include <include/transposition.h>
 // Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
 // Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
 // Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
@@ -20,10 +20,17 @@ const int MVV_LVA[6][6] = {
     {505, 504, 503, 502, 501, 500}, // Victim: Queen
     {0, 0, 0, 0, 0, 0} // Victim: King
 };
-
-int scoreMove(int move, Board& board) {
+/* Checks Transposition Table first for an exact move match(Highest Score)
+ * Then check the MVV-LVA lookup table(Second Highest Scoring)
+ * All other moves(sorted to the back)
+ */
+int scoreMove(int move, Board& board, int ttMove) {
+    // if this move is the exact move from TT, give it the highest possible score
+    if (move == ttMove) {
+        return 2000000;
+    }
     int flag = getFlag(move);
-    bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || flag >= PC_KNIGHT && flag <= PC_KNIGHT);
+    bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
 
     if (!isCapture) {
         return 0; // Non-capture moves get sorted to back
@@ -66,12 +73,24 @@ void sortMoves(MoveList& moveList, int moveScores[]) {
  * Negamax assumes every node wants to maximize its own score.
  */
 int negamax(Board& board, int depth, int alpha, int beta) {
+    int originalAlpha = alpha;
+    int ttMove = 0;
+
+    // probe transposition table
+    int ttScore = probeTT(board.getHashKey(), depth, alpha, beta, ttMove);
+
+    // if transposition table gave a valid score, skip the entire branch
+    if (ttScore != UNKNOWN_SCORE) {
+        return ttScore;
+    }
+
     // Base case: Reached the end depth
     if (depth == 0) {
         return evaluate(board);
     }
     // Start with the worst possible score
     int maxScore = -INF;
+    int bestMoveThisNode = 0;
     int legalMoves = 0; // track how many moves played
 
     // Get all possible moves for this board state
@@ -81,7 +100,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     // Score every move
     int moveScores[256];
     for (int i = 0; i < moveList.count ; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board);
+        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove);
     }
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);
@@ -96,23 +115,27 @@ int negamax(Board& board, int depth, int alpha, int beta) {
             continue;
         }
         legalMoves++;
+
         // --- NEGAMAX LOGIC ---
-
         int score = -negamax(board, depth - 1, -beta, -alpha);
-
         unmakeMove(move, board);
 
         // Keep the highest score
-        maxScore = std::max(maxScore, score);
+        if (score > maxScore) {
+            maxScore = score;
+            bestMoveThisNode = move;
+        }
 
         // --- ALPHA BETA PRUNING ---
 
         alpha = std::max(alpha, maxScore); // update minimum guranteed score
 
-        // the cutoff
+        // the BETA cutoff
         if (alpha >= beta) {
             // min gauranteed score is higher than max score
             // opponent will avoid branch entirely
+
+            storeTT(board.getHashKey(), depth, HASH_BETA, maxScore, bestMoveThisNode);
             break;
         }
     }
@@ -132,6 +155,14 @@ int negamax(Board& board, int depth, int alpha, int beta) {
             return 0; //Stalemate
         }
     }
+    int hashFlag = HASH_ALPHA;
+    if (maxScore > originalAlpha) {
+        hashFlag = HASH_EXACT; // found a move that improves position
+    }
+    // Save to memory
+    if (bestMoveThisNode != 0) {
+        storeTT(board.getHashKey(), depth, hashFlag, maxScore, bestMoveThisNode);
+    }
     return maxScore;
 }
 
@@ -150,7 +181,7 @@ void searchRoot(Board& board, int depth) {
     // Score every move
     int moveScores[256];
     for (int i = 0; i < moveList.count ; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board);
+        moveScores[i] = scoreMove(moveList.moves[i], board, 0);
     }
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);

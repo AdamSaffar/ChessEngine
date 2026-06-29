@@ -31,6 +31,7 @@ struct GameState {
     int enPassantSquare;
     int halfMoveClock;
     int capturedPieceType; // Store type of piece captured
+    U64 hashKey;
 };
 class Board {
 private:
@@ -58,6 +59,8 @@ private:
     GameState history[512]; // Longest chess game was 538 half-moves 
     // pointer to track current depth in the history stack
     int historyPly = 0;
+
+    U64 hashKey = 0; // unique key for the current board state
 public:
     // Constructor
     Board();
@@ -68,6 +71,7 @@ public:
     inline int getCastlingRights() const { return castlingRights;}
     inline U64 getOccupancies(int color) const { return occupancies[color];} // Get colors total occupancy
     inline U64 getPieceBitBoard(int pieceType) const { return pieceBitBoards[pieceType];}
+    inline U64 getHashKey() const { return hashKey; }
     inline int getPieceAt(unsigned int startSquare) const {
         U64 squareMask = 1ULL << startSquare;
         // loop through all 12 bitoboards

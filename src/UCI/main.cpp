@@ -79,6 +79,7 @@ int main() {
             if (setupToken == "startpos") {
                 // reset board
                 board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                board.hashKey = generateHashKey(board);
                 std::string skip;
                 iss >> skip;; // skip word "moves"
             }
