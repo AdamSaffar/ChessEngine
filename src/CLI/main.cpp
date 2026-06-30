@@ -58,6 +58,8 @@ int main() {
     Board board;
     //board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // put all pieces on their starting squares
     board.parseFEN("6kB/8/3N3Q/2Pb4/p6P/P7/3K4/R7 w - - 0 40");
+    board.setHashKey(generateHashKey(board)); // generate zobrist key
+    std::cout << "Hash Key: " << board.getHashKey() << '\n';
     std::cout << "=====================================\n";
     std::cout << "      CHESS ENGINE TERMINAL          \n";
     std::cout << "=====================================\n";

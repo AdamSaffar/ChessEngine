@@ -57,7 +57,8 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
-    initTT(64);
+    initTT(64); // init transposition table
+
     Board board;
     std::string line;
     // Infinite CLI loop
@@ -79,7 +80,7 @@ int main() {
             if (setupToken == "startpos") {
                 // reset board
                 board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-                board.hashKey = generateHashKey(board);
+                board.setHashKey(generateHashKey(board)); // generate unique zobrist key
                 std::string skip;
                 iss >> skip;; // skip word "moves"
             }

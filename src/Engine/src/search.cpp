@@ -68,6 +68,55 @@ void sortMoves(MoveList& moveList, int moveScores[]) {
         moveList.moves[j + 1] = keyMove;
     }
 }
+/** Quiescence Search ignores depth limit and recursively plays out all available captures. */
+int quiescence(Board& board, int alpha, int beta) {
+    // get standalone score before doing anything
+    int currentScore = evaluate(board);
+
+    // if currentSCore is already enough for beta cutoff, stop here
+    if (currentScore >= beta) {
+        return beta;
+    }
+
+    // update highest score
+    if (currentScore > alpha) {
+        alpha = currentScore;
+    }
+
+    MoveList moveList;
+    generateMoves(moveList, board);
+
+    // Score and sort moves
+    int moveScores[256];
+    for (int i = 0; i < moveList.count; i++) {
+        moveScores[i] = scoreMove(moveList.moves[i], board, 0);
+    }
+    sortMoves(moveList, moveScores);
+
+    for (int i = 0; i < moveList.count; i++) {
+        int move = moveList.moves[i];
+        int flag = getFlag(move);
+
+        // Filter out quiet moves
+        bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
+        if (!isCapture) {
+            continue;
+        }
+
+        if (!makeMove(move, board)) {
+            continue; // illegal move
+        }
+        // recurse until there are no captures left
+        int score = -quiescence(board, -beta, -alpha);
+        unmakeMove(move, board);
+
+        // Alpha-beta pruning
+        if (score > alpha) {
+            alpha = score;
+        }
+    }
+    return alpha;
+}
 /** Core recursive search tree using the Negamax algorithm.
  * Explores the game tree using Depth-First search,
  * Negamax assumes every node wants to maximize its own score.
@@ -86,7 +135,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
 
     // Base case: Reached the end depth
     if (depth == 0) {
-        return evaluate(board);
+        return quiescence(board, alpha, beta); // q-search resolves captures and returns eval
     }
     // Start with the worst possible score
     int maxScore = -INF;

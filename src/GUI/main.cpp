@@ -99,10 +99,11 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
-    initTT(64);
+    initTT(64); // init transposition table
 
     Board board;
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
+    board.setHashKey(generateHashKey(board)); // generate zobrist key
 
     sf::RenderWindow window(sf::VideoMode::getDesktopMode(), "Chess Game");
     window.setVerticalSyncEnabled(true);
@@ -163,7 +164,7 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
-            searchRoot(board, 7); // CALL SEARCH FUNCTION
+            searchRoot(board, 100); // CALL SEARCH FUNCTION
             // If the computer attempts an illegal move -> exit
             if (!makeMove(bestMoveToPlay, board)) {
                 std::cout << "Engine Failed: Attempted illegal move.\n";

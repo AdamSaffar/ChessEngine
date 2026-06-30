@@ -72,6 +72,7 @@ public:
     inline U64 getOccupancies(int color) const { return occupancies[color];} // Get colors total occupancy
     inline U64 getPieceBitBoard(int pieceType) const { return pieceBitBoards[pieceType];}
     inline U64 getHashKey() const { return hashKey; }
+    inline void setHashKey(U64 hashKey) {this->hashKey = hashKey;}
     inline int getPieceAt(unsigned int startSquare) const {
         U64 squareMask = 1ULL << startSquare;
         // loop through all 12 bitoboards
