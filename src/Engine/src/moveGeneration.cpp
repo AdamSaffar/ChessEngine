@@ -988,8 +988,8 @@ bool makeMove(uint16_t move, Board& board) {
     if (board.enPassantSquare != -1) {
         board.hashKey ^= enPassantKeys[board.enPassantSquare];
     }
-    board.hashKey = castleKeys[board.castlingRights];
-    board.hashKey = sideKey;
+    board.hashKey ^= castleKeys[board.castlingRights];
+    board.hashKey ^= sideKey;
     // KING SAFETY CHECKS!
     int ourColor = board.sideToMove ^ 1;
 

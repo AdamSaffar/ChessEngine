@@ -111,6 +111,9 @@ int quiescence(Board& board, int alpha, int beta) {
         unmakeMove(move, board);
 
         // Alpha-beta pruning
+        if (score >= beta) {
+            return beta; // FIX: Cut off the dead branch!
+        }
         if (score > alpha) {
             alpha = score;
         }
