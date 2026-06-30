@@ -2,6 +2,8 @@
 // Created by saffa on 6/28/2026.
 //
 #include <iostream>
+#include <chrono>
+#include <thread>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -91,6 +93,8 @@ int main() {
                     fen += fenToken + " ";
                 }
                 board.parseFEN(fen);
+                // generate hash key after parsing FEN
+                board.setHashKey(generateHashKey(board));
                 std::string skip;
                 iss >> skip; // skip word "moves"
             }
@@ -138,29 +142,42 @@ int main() {
                 }
             }
         } else if (command == "go") {
+            int targetDepth = 20;
+            std::string token;
+            // read input string for depth
+            while (iss >> token) {
+                if (token == "depth") {
+                    iss >> targetDepth;
+                }
+            }
             // find best move via iterative deepening
-            for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
-                searchRoot(board, currentDepth); // CALL SEARCH FUNCTION
+            for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
+                auto startTime = std::chrono::steady_clock::now();
+                searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
             }
 
-            // translate start and target squares
-            std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +
-                                       indexToChessNotation(getTarget(bestMoveToPlay));
+            if (bestMoveToPlay == 0) {
+                // add safety catch
+                std::cout << "bestmove 0000" << std::endl;
+            } else {
+                // translate start and target squares
+                std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +
+                                           indexToChessNotation(getTarget(bestMoveToPlay));
+                // handle promotion flags
+                int flag = getFlag(bestMoveToPlay);
+                if (flag == PR_QUEEN || flag == PC_QUEEN) {
+                    computerMove += 'q';
+                } else if (flag == PR_ROOK || flag == PC_ROOK) {
+                    computerMove += 'r';
+                } else if (flag == PR_BISHOP || flag == PC_BISHOP) {
+                    computerMove += 'b';
+                } else if (flag == PR_KNIGHT || flag == PC_KNIGHT) {
+                    computerMove += 'n';
+                }
 
-            // handle promotion flags
-            int flag = getFlag(bestMoveToPlay);
-            if (flag == PR_QUEEN || flag == PC_QUEEN) {
-                computerMove += 'q';
-            } else if (flag == PR_ROOK || flag == PC_ROOK) {
-                computerMove += 'r';
-            } else if (flag == PR_BISHOP || flag == PC_BISHOP) {
-                computerMove += 'b';
-            } else if (flag == PR_KNIGHT || flag == PC_KNIGHT) {
-                computerMove += 'n';
+                // Send the move to console
+                std::cout << "bestmove " << computerMove << std::endl;
             }
-
-            // Send the move to console
-            std::cout << "bestmove " << computerMove << std::endl;
         }  else if (command == "setoption") {
             std::string skip;
             std::string optionToken, valToken, newTTSize;
@@ -170,12 +187,14 @@ int main() {
                 iss >> newTTSize;
                 try {
                     int targetMB = std::stoi(newTTSize);
-                    initTT(std::stoi(newTTSize));// resize transposition table
+                    initTT(targetMB);// resize transposition table
                 } catch (const std::exception& e) {
                     // safety catch incase std::stoi fails
                     std::cout << "Error resizing hash" << std::endl;
                 }
             }
+        } else if (command == "ucinewgame") {
+            clearTT(); // wipe memory
         }
     }
 

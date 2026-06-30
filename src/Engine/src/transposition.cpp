@@ -65,14 +65,14 @@ int probeTT(U64 zobristKey, int depth, int alpha, int beta, int& ttMove) {
             if (entry.flag == HASH_EXACT) {
                 return entry.score;
             }
-        }
-        // Score was Bad
-        if (entry.flag == HASH_ALPHA) {
-            return alpha;
-        }
-        // Score was good
-        if (entry.flag == HASH_BETA) {
-            return beta;
+            // Score was Bad
+            if (entry.flag == HASH_ALPHA && entry.score <= alpha) {
+                return alpha;
+            }
+            // Score was good
+            if (entry.flag == HASH_BETA && entry.score >= beta) {
+                return beta;
+            }
         }
     }
     // No valid key match or depth wasnt deep enough to cutoff

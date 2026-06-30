@@ -1,6 +1,9 @@
 //
 // Created by saffa on 6/25/2026.
 //
+#include <iostream>
+#include <thread>
+#include <chrono>
 #include <algorithm>
 #include <include/search.h>
 #include <include/board.h>
@@ -220,7 +223,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
 
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
-void searchRoot(Board& board, int depth) {
+void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
     int maxScore = -INF;
     int bestRootMove = 0;
 
@@ -263,4 +266,14 @@ void searchRoot(Board& board, int depth) {
         alpha = std::max(alpha, maxScore);
     }
     bestMoveToPlay = bestRootMove;
+
+    // Calculate elapsed time
+    auto end = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - startTime).count();
+
+    // Print debugging information like: depth, score, and time spent at depth
+    std::cout << "info depth " << depth
+              << " score cp " << maxScore
+              << " time " << duration
+              << std::endl;
 }

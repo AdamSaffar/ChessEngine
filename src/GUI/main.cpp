@@ -2,6 +2,8 @@
 // Created by saffa on 6/27/2026.
 //
 #include <iostream>
+#include <chrono>
+#include <thread>
 #include <algorithm>
 #include <SFML/Graphics.hpp>
 #include "../Engine/include/board.h"
@@ -166,7 +168,8 @@ int main() {
         if (board.getSideToMove() == COLOR::BLACK) {
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
-                searchRoot(board, currentDepth); // CALL SEARCH FUNCTION
+                auto startTime = std::chrono::steady_clock::now();
+                searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
             }
 
             // If the computer attempts an illegal move -> exit

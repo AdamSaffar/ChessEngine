@@ -120,7 +120,12 @@ public:
         for (U64& board: pieceBitBoards) board = 0ULL;
         // Clear occupancies
         for (U64& occupancy: occupancies) occupancy = 0ULL;
-
+        // Reset trackers so they dont overflow across multiple games
+        historyPly = 0;
+        halfMoveClock = 0;
+        fullMoveNumber = 1;
+        enPassantSquare = -1;
+        castlingRights = 0;
         // Use string stream to separate fen string by spaces
         std::istringstream ss(fen);
         std::string boardSection, turnSection, castlingSection, enPassantSection, halfMoveSection, fullMoveSection;
