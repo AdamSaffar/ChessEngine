@@ -227,13 +227,16 @@ void searchRoot(Board& board, int depth) {
     int alpha = -INF;
     int beta = INF;
 
+    int ttMove = 0;
+    probeTT(board.getHashKey(), depth, alpha, beta, ttMove);
+
     MoveList moveList;
     generateMoves(moveList, board);
 
     // Score every move
     int moveScores[256];
     for (int i = 0; i < moveList.count ; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board, 0);
+        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove);
     }
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);

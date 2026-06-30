@@ -164,7 +164,11 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
-            searchRoot(board, 8); // CALL SEARCH FUNCTION
+            // iterative deepening
+            for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
+                searchRoot(board, currentDepth); // CALL SEARCH FUNCTION
+            }
+
             // If the computer attempts an illegal move -> exit
             if (!makeMove(bestMoveToPlay, board)) {
                 std::cout << "Engine Failed: Attempted illegal move.\n";

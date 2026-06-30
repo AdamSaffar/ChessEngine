@@ -138,8 +138,10 @@ int main() {
                 }
             }
         } else if (command == "go") {
-            // find best move
-            searchRoot(board, 5);
+            // find best move via iterative deepening
+            for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
+                searchRoot(board, currentDepth); // CALL SEARCH FUNCTION
+            }
 
             // translate start and target squares
             std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +

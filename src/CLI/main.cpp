@@ -136,7 +136,10 @@ int main() {
          }
         // --- COMPUTERS MOVE (BLACK) ---
         else {
-            searchRoot(board, 6); // Chose Depth 6. Smaller depths are faster searches, larger depths are more accurate
+            // iterative deepening
+            for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
+                searchRoot(board, currentDepth); // CALL SEARCH FUNCTION
+            }
             // If the computer attempts an illegal move -> exit
             if (!makeMove(bestMoveToPlay, board)) {
                 std::cout << "Engine Failed: Attempted illegal move.\n";
