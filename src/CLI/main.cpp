@@ -138,6 +138,8 @@ int main() {
          }
         // --- COMPUTERS MOVE (BLACK) ---
         else {
+            extern unsigned long long nodesSearched;
+            nodesSearched = 0; // reset node count
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();

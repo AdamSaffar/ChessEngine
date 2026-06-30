@@ -142,7 +142,7 @@ int main() {
                 }
             }
         } else if (command == "go") {
-            int targetDepth = 20;
+            int targetDepth = 8;
             std::string token;
             // read input string for depth
             while (iss >> token) {
@@ -150,6 +150,8 @@ int main() {
                     iss >> targetDepth;
                 }
             }
+            extern unsigned long long nodesSearched;
+            nodesSearched = 0; // reset node count
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();

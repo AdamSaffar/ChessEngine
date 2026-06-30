@@ -166,6 +166,8 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
+            extern unsigned long long nodesSearched;
+            nodesSearched = 0; // reset node count
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();

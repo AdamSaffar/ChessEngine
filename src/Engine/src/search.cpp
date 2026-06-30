@@ -11,6 +11,9 @@
 #include <include/move.h>
 #include <include/moveGeneration.h>
 #include <include/transposition.h>
+
+unsigned long long nodesSearched = 0; // cumulative total node count
+
 // Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
 // Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
 // Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
@@ -97,6 +100,7 @@ int quiescence(Board& board, int alpha, int beta) {
     sortMoves(moveList, moveScores);
 
     for (int i = 0; i < moveList.count; i++) {
+        nodesSearched++; // increment node count
         int move = moveList.moves[i];
         int flag = getFlag(move);
 
@@ -128,6 +132,7 @@ int quiescence(Board& board, int alpha, int beta) {
  * Negamax assumes every node wants to maximize its own score.
  */
 int negamax(Board& board, int depth, int alpha, int beta) {
+    nodesSearched++; // increment node count
     int originalAlpha = alpha;
     int ttMove = 0;
 
@@ -271,9 +276,17 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - startTime).count();
 
+    long long nps = 0;
+    // protect against division by zero
+    if (duration > 0) {
+        // Nodes per second = (nodes searched * 1000 / Total Elapsed Time in ms)
+        nps = (nodesSearched * 1000) / duration;
+    }
     // Print debugging information like: depth, score, and time spent at depth
     std::cout << "info depth " << depth
               << " score cp " << maxScore
               << " time " << duration
+              << " nodes " << nodesSearched
+              << " nps " << nps
               << std::endl;
 }
