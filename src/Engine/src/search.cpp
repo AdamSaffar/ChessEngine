@@ -14,6 +14,7 @@
 
 unsigned long long nodesSearched = 0; // cumulative total node count
 
+int killerMoves[64][2]; // [ply][slot 0 or 1]
 // Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
 // Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
 // Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
@@ -262,6 +263,18 @@ int negamax(Board& board, int depth, int alpha, int beta) {
             // opponent will avoid branch entirely
 
             storeTT(board.getHashKey(), depth, HASH_BETA, maxScore, bestMoveThisNode);
+
+            // --- KILLER HEURISTIC ---
+
+            // if a non-capture move caused a beta cutoff, save the move
+            // when searching sibling branches, check if move is one of the killer moves from previous branch
+            if (getFlag(bestMoveThisNode) != CAPTURE && getFlag(bestMoveThisNode) != EN_PASSANT
+                && (getFlag(bestMoveThisNode) >= PC_KNIGHT  && getFlag(bestMoveThisNode) <= PC_QUEEN)) {
+                // Shift old killer down
+                killerMoves[ply][1] = killerMoves[ply][0]; // ply = distance from root
+                // Save new killer
+                killerMoves[ply][0] = bestMoveThisNode;
+            }
             break;
         }
     }
@@ -356,9 +369,3 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
               << " nps " << nps
               << std::endl;
 }
-
-
-/** In almost all chess positions, making a NULL move(passing turn) is worse han the best legal move
- * NMP uses this obeservation like so:
- *
- */

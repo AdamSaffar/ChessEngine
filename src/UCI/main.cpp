@@ -2,6 +2,7 @@
 // Created by saffa on 6/28/2026.
 //
 #include <iostream>
+#include <cstring>
 #include <chrono>
 #include <thread>
 #include <string>
@@ -150,8 +151,11 @@ int main() {
                     iss >> targetDepth;
                 }
             }
+            extern int killerMoves[64][2];
             extern unsigned long long nodesSearched;
             nodesSearched = 0; // reset node count
+            // clear killer moves array
+            std::memset(killerMoves, 0, sizeof(killerMoves));
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
