@@ -67,7 +67,9 @@ public:
 
     // --- Fast inline getters to fetch game state ---
     inline int getSideToMove() const { return sideToMove;}
+    inline void setSideToMove(int sideToMove) {this->sideToMove = sideToMove;}
     inline int getEnpassantSquare() const { return enPassantSquare;}
+    inline void setEnpassantSquare(int enPassantSquare) {this->enPassantSquare = enPassantSquare;}
     inline int getCastlingRights() const { return castlingRights;}
     inline U64 getOccupancies(int color) const { return occupancies[color];} // Get colors total occupancy
     inline U64 getPieceBitBoard(int pieceType) const { return pieceBitBoards[pieceType];}
@@ -230,5 +232,8 @@ public:
         halfMoveClock = std::stoi(halfMoveSection); // use std::stoi to convert string to int
         fullMoveNumber = std::stoi(fullMoveSection);
     }
+    friend void makeNullMove(Board& board);
+    friend void unmakeNullMove(Board& board);
+    friend int negamax(Board& board, int depth, int alpha, int beta);
 };
 #endif //CHESSENGINE_BOARD_H

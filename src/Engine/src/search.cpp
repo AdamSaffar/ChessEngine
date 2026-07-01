@@ -127,6 +127,44 @@ int quiescence(Board& board, int alpha, int beta) {
     }
     return alpha;
 }
+
+// helper func to make null move
+void makeNullMove(Board& board) {
+    // save current state board (so we can unmake null move later)
+    board.history[board.historyPly].castlingRights = board.castlingRights;
+    board.history[board.historyPly].enPassantSquare = board.enPassantSquare;
+    board.history[board.historyPly].halfMoveClock = board.halfMoveClock;
+
+    board.history[board.historyPly].capturedPieceType = -1;
+    board.history[board.historyPly].hashKey = board.hashKey;
+    board.historyPly++;
+
+    U64 hashKey = board.getHashKey();
+    // clear the en passant square
+    if (board.getEnpassantSquare() != -1) {
+        // XOR current EP square
+        hashKey ^= enPassantKeys[board.getEnpassantSquare()];
+        board.setEnpassantSquare(-1);
+    }
+    // Flip side to move
+    board.setSideToMove(board.getSideToMove() ^ 1);
+    hashKey ^= sideKey;
+
+    board.setHashKey(hashKey);
+}
+// helper func to unmake null move
+void unmakeNullMove(Board& board) {
+    // Move history pointer back by 1 to view the game state before this move
+    board.historyPly--;
+    GameState state = board.history[board.historyPly];
+
+    // Restore State
+    board.castlingRights = state.castlingRights;
+    board.enPassantSquare = state.enPassantSquare;
+    board.halfMoveClock = state.halfMoveClock;
+    board.sideToMove = (board.sideToMove == COLOR::WHITE) ? COLOR::BLACK : COLOR::WHITE;;
+    board.hashKey = state.hashKey; // restore zobrist key
+}
 /** Core recursive search tree using the Negamax algorithm.
  * Explores the game tree using Depth-First search,
  * Negamax assumes every node wants to maximize its own score.
@@ -153,6 +191,34 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     int bestMoveThisNode = 0;
     int legalMoves = 0; // track how many moves played
 
+    int friendlyColor = board.getSideToMove();
+    int kingPieceIndex = PIECE_TYPE::King + ((friendlyColor == COLOR::BLACK) ? 6 : 0);
+    U64 kingBitBoard = board.getPieceBitBoard(kingPieceIndex);
+    int kingSquare = __builtin_ctzll(kingBitBoard);
+    int colorOffset = (friendlyColor == COLOR::BLACK) ? 6 : 0;
+
+    // ---NULL MOVE PRUNING---
+    int R = 2; // depth reduction factor
+
+    // check if current player has non-pawn material
+    bool pawnsOnly = (board.pieceBitBoards[Knight + colorOffset] | board.pieceBitBoards[Bishop + colorOffset] |
+    board.pieceBitBoards[Rook + colorOffset]  | board.pieceBitBoards[Queen + colorOffset]) == 0ULL;
+
+    bool inCheck = board.isSquareAttacked(kingSquare, friendlyColor ^ 1);
+
+    // only attempt NMP if: not in check, enough depth to justify reduction, and non-pawn material remaining on board
+    if (depth >= 3 && !inCheck && !pawnsOnly) {
+        makeNullMove(board);
+
+        // search with reduced depth
+        int score = -negamax(board, depth - 1 - R, -beta, -beta + 1);
+
+        unmakeNullMove(board);
+
+        // KEY LOGIC: if the score still beats beta even after a free move
+        // position is incredibly strong. Prune branch.
+        if (score >= beta) return beta;
+    }
     // Get all possible moves for this board state
     MoveList moveList;
     generateMoves(moveList, board);
@@ -290,3 +356,9 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
               << " nps " << nps
               << std::endl;
 }
+
+
+/** In almost all chess positions, making a NULL move(passing turn) is worse han the best legal move
+ * NMP uses this obeservation like so:
+ *
+ */

@@ -169,7 +169,7 @@ int main() {
             extern unsigned long long nodesSearched;
             nodesSearched = 0; // reset node count
             // iterative deepening
-            for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
+            for (int currentDepth = 1; currentDepth <= 7; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
             }
