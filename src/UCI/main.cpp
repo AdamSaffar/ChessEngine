@@ -14,7 +14,10 @@
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
+#define MAX_PLY 64
 
+extern unsigned long long nodesSearched;
+extern int killerMoves[MAX_PLY][2];
 
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
@@ -151,8 +154,6 @@ int main() {
                     iss >> targetDepth;
                 }
             }
-            extern int killerMoves[64][2];
-            extern unsigned long long nodesSearched;
             nodesSearched = 0; // reset node count
             // clear killer moves array
             std::memset(killerMoves, 0, sizeof(killerMoves));

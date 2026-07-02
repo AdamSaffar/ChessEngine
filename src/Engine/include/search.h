@@ -13,6 +13,6 @@ const int MATE_VALUE = 50000;
 
 extern int bestMoveToPlay; // GUI will read this var when search finishes
 
-int negamax(Board& board, int depth, int alpha, int beta);
+int negamax(Board& board, int depth, int alpha, int beta, int ply);
 void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime);
 #endif //CHESSENGINE_SEARCH_H

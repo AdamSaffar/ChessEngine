@@ -234,6 +234,6 @@ public:
     }
     friend void makeNullMove(Board& board);
     friend void unmakeNullMove(Board& board);
-    friend int negamax(Board& board, int depth, int alpha, int beta);
+    friend int negamax(Board& board, int depth, int alpha, int beta, int ply);
 };
 #endif //CHESSENGINE_BOARD_H

@@ -12,9 +12,14 @@
 #include <include/moveGeneration.h>
 #include <include/transposition.h>
 
+#define MAX_PLY 64
 unsigned long long nodesSearched = 0; // cumulative total node count
 
-int killerMoves[64][2]; // [ply][slot 0 or 1]
+int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
+const int TT_MOVE_SCORE = 2000000;
+const int CAPTURE_BASE_SCORE = 1000000;
+const int KILLER_1_SCORE = 90000;
+const int KILLER_2_SCORE = 80000;
 // Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
 // Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
 // Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
@@ -29,18 +34,25 @@ const int MVV_LVA[6][6] = {
 };
 /* Checks Transposition Table first for an exact move match(Highest Score)
  * Then check the MVV-LVA lookup table(Second Highest Scoring)
- * All other moves(sorted to the back)
+ * Then check killerMoves array(Third highest scoring)
+ * All other moves(scored very low)
  */
-int scoreMove(int move, Board& board, int ttMove) {
+int scoreMove(int move, Board& board, int ttMove, int ply) {
     // if this move is the exact move from TT, give it the highest possible score
     if (move == ttMove) {
-        return 2000000;
+        return TT_MOVE_SCORE;
     }
     int flag = getFlag(move);
     bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
 
     if (!isCapture) {
-        return 0; // Non-capture moves get sorted to back
+        if (move == killerMoves[ply][0]) {
+            return KILLER_1_SCORE;
+        } else if (move == killerMoves[ply][1]) {
+            return KILLER_2_SCORE;
+        } else {
+            return 0; // Non-capture non-killer moves get sorted to back
+        }
     }
 
     int start = getStart(move);
@@ -49,7 +61,7 @@ int scoreMove(int move, Board& board, int ttMove) {
     // En Passant Logic(Target square is empty, handle separately)
     if (flag == EN_PASSANT) {
         // Always pawn attacking pawn
-        return MVV_LVA[PIECE_TYPE::Pawn][PIECE_TYPE::Pawn];
+        return CAPTURE_BASE_SCORE + MVV_LVA[PIECE_TYPE::Pawn][PIECE_TYPE::Pawn];
     }
 
     // Extract piece type
@@ -57,7 +69,7 @@ int scoreMove(int move, Board& board, int ttMove) {
     int victim = board.getPieceAt(target) % 6;
 
     // return score from lookup table
-    return MVV_LVA[victim][attacker];
+    return CAPTURE_BASE_SCORE + MVV_LVA[victim][attacker];
 }
 // Insertion sort Algorithm(from largest to smallest scores) to sort move order
 void sortMoves(MoveList& moveList, int moveScores[]) {
@@ -96,7 +108,7 @@ int quiescence(Board& board, int alpha, int beta) {
     // Score and sort moves
     int moveScores[256];
     for (int i = 0; i < moveList.count; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board, 0);
+        moveScores[i] = scoreMove(moveList.moves[i], board, 0, 0);
     }
     sortMoves(moveList, moveScores);
 
@@ -170,8 +182,13 @@ void unmakeNullMove(Board& board) {
  * Explores the game tree using Depth-First search,
  * Negamax assumes every node wants to maximize its own score.
  */
-int negamax(Board& board, int depth, int alpha, int beta) {
+int negamax(Board& board, int depth, int alpha, int beta, int ply) {
+    // prevent array out of bounds
+    if (ply >= MAX_PLY) {
+        return  quiescence(board, alpha, beta);
+    }
     nodesSearched++; // increment node count
+
     int originalAlpha = alpha;
     int ttMove = 0;
 
@@ -212,7 +229,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
         makeNullMove(board);
 
         // search with reduced depth
-        int score = -negamax(board, depth - 1 - R, -beta, -beta + 1);
+        int score = -negamax(board, depth - 1 - R, -beta, -beta + 1, ply + 1);
 
         unmakeNullMove(board);
 
@@ -227,7 +244,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
     // Score every move
     int moveScores[256];
     for (int i = 0; i < moveList.count ; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove);
+        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove, ply);
     }
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);
@@ -244,7 +261,7 @@ int negamax(Board& board, int depth, int alpha, int beta) {
         legalMoves++;
 
         // --- NEGAMAX LOGIC ---
-        int score = -negamax(board, depth - 1, -beta, -alpha);
+        int score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
         unmakeMove(move, board);
 
         // Keep the highest score
@@ -265,15 +282,17 @@ int negamax(Board& board, int depth, int alpha, int beta) {
             storeTT(board.getHashKey(), depth, HASH_BETA, maxScore, bestMoveThisNode);
 
             // --- KILLER HEURISTIC ---
-
+            int flag = getFlag(bestMoveThisNode);
             // if a non-capture move caused a beta cutoff, save the move
             // when searching sibling branches, check if move is one of the killer moves from previous branch
-            if (getFlag(bestMoveThisNode) != CAPTURE && getFlag(bestMoveThisNode) != EN_PASSANT
-                && (getFlag(bestMoveThisNode) >= PC_KNIGHT  && getFlag(bestMoveThisNode) <= PC_QUEEN)) {
-                // Shift old killer down
-                killerMoves[ply][1] = killerMoves[ply][0]; // ply = distance from root
-                // Save new killer
-                killerMoves[ply][0] = bestMoveThisNode;
+            if (flag != CAPTURE && flag != EN_PASSANT && !(flag >= PC_KNIGHT && flag <= PC_QUEEN)){
+                /* Store two most recent non-capture moves that caused beta cut-off in killerMoves*/
+                if (move != killerMoves[ply][0]) {
+                    // Shift old killer down
+                    killerMoves[ply][1] = killerMoves[ply][0]; // ply = distance from root
+                    // Save new killer
+                    killerMoves[ply][0] = bestMoveThisNode;
+                }
             }
             break;
         }
@@ -323,7 +342,7 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
     // Score every move
     int moveScores[256];
     for (int i = 0; i < moveList.count ; i++) {
-        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove);
+        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove, 0);
     }
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);
@@ -337,7 +356,7 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
             bestRootMove = move;
         }
         // pass inverted bounds
-        int score = -negamax(board, depth - 1, -beta, -alpha);
+        int score = -negamax(board, depth - 1, -beta, -alpha, 1);
 
         unmakeMove(move, board);
 

@@ -2,14 +2,17 @@
 #include <thread>
 #include <chrono>
 #include <string>
+#include <cstring>
 #include "../Engine/include/board.h"
 #include "../Engine/include/moveGeneration.h"
 #include "../Engine/include/search.h"
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
+#define MAX_PLY 64
 
-
+extern unsigned long long nodesSearched;
+extern int killerMoves[MAX_PLY][2];
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
     std::string result = "";
@@ -138,8 +141,10 @@ int main() {
          }
         // --- COMPUTERS MOVE (BLACK) ---
         else {
-            extern unsigned long long nodesSearched;
+
             nodesSearched = 0; // reset node count
+            // clear killer moves array
+            std::memset(killerMoves, 0, sizeof(killerMoves));
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();

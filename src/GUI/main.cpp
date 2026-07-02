@@ -4,6 +4,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <cstring>
 #include <algorithm>
 #include <SFML/Graphics.hpp>
 #include "../Engine/include/board.h"
@@ -12,6 +13,10 @@
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
+#define MAX_PLY 64
+
+extern unsigned long long nodesSearched;
+extern int killerMoves[MAX_PLY][2];
 
 void drawBoard(sf::RenderWindow& window, float squareSize) {
     // Chess.com theme colors
@@ -166,10 +171,12 @@ int main() {
         }
         // --- ENGINES TURN ---
         if (board.getSideToMove() == COLOR::BLACK) {
-            extern unsigned long long nodesSearched;
+
             nodesSearched = 0; // reset node count
+            // clear killer moves array
+            std::memset(killerMoves, 0, sizeof(killerMoves));
             // iterative deepening
-            for (int currentDepth = 1; currentDepth <= 7; currentDepth++) {
+            for (int currentDepth = 1; currentDepth <= 8; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
             }
