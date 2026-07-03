@@ -16,6 +16,7 @@
 unsigned long long nodesSearched = 0; // cumulative total node count
 
 int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
+int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
 const int KILLER_1_SCORE = 90000;
@@ -32,10 +33,11 @@ const int MVV_LVA[6][6] = {
     {505, 504, 503, 502, 501, 500}, // Victim: Queen
     {0, 0, 0, 0, 0, 0} // Victim: King
 };
-/* Checks Transposition Table first for an exact move match(Highest Score)
- * Then check the MVV-LVA lookup table(Second Highest Scoring)
- * Then check killerMoves array(Third highest scoring)
- * All other moves(scored very low)
+/* 1. Transposition Table first for an exact move match(Highest Score)
+ * 2. MVV-LVA lookup table(Second Highest Scoring)
+ * 3. killerMoves array(Third highest scoring)
+ * 4. historyTable 3D array( 4th highest scoring)
+ * 5. All other moves(scored very low)
  */
 int scoreMove(int move, Board& board, int ttMove, int ply) {
     // if this move is the exact move from TT, give it the highest possible score
@@ -44,19 +46,24 @@ int scoreMove(int move, Board& board, int ttMove, int ply) {
     }
     int flag = getFlag(move);
     bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
+    int color = board.getSideToMove();
+    int start = getStart(move);
+    int target = getTarget(move);
 
+    // Sorting non-capture moves:
+    // 1. First Killer Move 2. Second Killer Move 3. History Table move 4. All others
     if (!isCapture) {
         if (move == killerMoves[ply][0]) {
             return KILLER_1_SCORE;
         } else if (move == killerMoves[ply][1]) {
             return KILLER_2_SCORE;
+        } else if (historyTable[color][start][target] != 0){
+            // cap the history score just below the killer 2 score to protect hierarchy
+            return std::min(historyTable[color][start][target], KILLER_2_SCORE - 1);
         } else {
-            return 0; // Non-capture non-killer moves get sorted to back
+            return 0; // Non-capture non-killer non-history moves get sorted to back
         }
     }
-
-    int start = getStart(move);
-    int target = getTarget(move);
 
     // En Passant Logic(Target square is empty, handle separately)
     if (flag == EN_PASSANT) {
@@ -281,17 +288,33 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
 
             storeTT(board.getHashKey(), depth, HASH_BETA, maxScore, bestMoveThisNode);
 
-            // --- KILLER HEURISTIC ---
+            // --- KILLER HEURISTIC & HISTORY HEURISTIC ---
             int flag = getFlag(bestMoveThisNode);
             // if a non-capture move caused a beta cutoff, save the move
             // when searching sibling branches, check if move is one of the killer moves from previous branch
-            if (flag != CAPTURE && flag != EN_PASSANT && !(flag >= PC_KNIGHT && flag <= PC_QUEEN)){
+            if (flag != CAPTURE && flag != EN_PASSANT && !(flag >= PC_KNIGHT && flag <= PC_QUEEN)) {
                 /* Store two most recent non-capture moves that caused beta cut-off in killerMoves*/
                 if (move != killerMoves[ply][0]) {
                     // Shift old killer down
                     killerMoves[ply][1] = killerMoves[ply][0]; // ply = distance from root
                     // Save new killer
                     killerMoves[ply][0] = bestMoveThisNode;
+                }
+                int color = board.getSideToMove();
+                int start = getStart(bestMoveThisNode);
+                int target = getTarget(bestMoveThisNode);
+                historyTable[color][start][target] += depth * depth;
+
+                // if score gets too high, apply decay to entire table
+                if (historyTable[color][start][target] >= KILLER_2_SCORE) {
+                    for (int c = 0; c < 2; c++) {
+                        for (int s = 0; s < 64; s++) {
+                            for (int t = 0; t < 64; t++) {
+                                // right shift by 1 to divide by 2
+                                historyTable[c][s][t] >>= 1;
+                            }
+                        }
+                    }
                 }
             }
             break;
