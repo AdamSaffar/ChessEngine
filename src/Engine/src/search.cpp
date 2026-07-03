@@ -266,9 +266,44 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
             continue;
         }
         legalMoves++;
+        int score;
+        int flag = getFlag(move);
+        bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
+        bool isKiller = (move == killerMoves[ply][0] || move == killerMoves[ply][1]);
 
-        // --- NEGAMAX LOGIC ---
-        int score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
+        int oppColor = board.getSideToMove();
+        int oppKingIndex = PIECE_TYPE::King + ((oppColor == COLOR::BLACK) ? 6 : 0);
+        int oppKingSquare = __builtin_ctzll(board.getPieceBitBoard(oppKingIndex));
+        bool givesCheck = board.isSquareAttacked(oppKingSquare, oppColor ^ 1);
+
+        /* LATE MOVE REDUCTIONS
+         * Reduce only if:
+         * Depth is high enough to matter
+         * Already searched most promising moves
+         * not currently in check
+         * is NOT a killerMove
+         */
+        if (depth >= 3  && legalMoves > 3 && !isCapture && !inCheck && !isKiller && !givesCheck) {
+            int reduction = 1; // base reduction
+
+            // reduce moves that are sorted extremely far back
+            if (legalMoves > 6) {
+                reduction = 2;
+            }
+
+            // Search with reduced depth
+            score = -negamax(board, depth - 1 - reduction, -beta, -alpha, ply + 1);
+
+            // If the move is very good, re-search at full depth
+            if (score > alpha) {
+                score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
+            }
+        } else {
+            // --- NEGAMAX LOGIC ---
+            // normal full-depth search for captures, killers, in-check, etc
+            score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
+        }
+
         unmakeMove(move, board);
 
         // Keep the highest score
@@ -323,13 +358,6 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     // Engine has reached a board state where it is impossible to make a move
     // Game is over: Either computer is checkmated or Stalemated
     if (legalMoves == 0) {
-        int friendlyColor = board.getSideToMove();
-        int kingPieceIndex = PIECE_TYPE::King + ((friendlyColor == COLOR::BLACK) ? 6 : 0);
-        U64 kingBitBoard = board.getPieceBitBoard(kingPieceIndex);
-
-        int kingSquare = __builtin_ctzll(kingBitBoard);
-        bool inCheck = board.isSquareAttacked(kingSquare, friendlyColor ^ 1);
-
         if (inCheck) {
             return -MATE_VALUE; // Computer is checkmated
         } else {
