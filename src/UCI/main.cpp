@@ -147,7 +147,7 @@ int main() {
                 }
             }
         } else if (command == "go") {
-            int targetDepth = 8;
+            int targetDepth = 9;
             std::string token;
             // read input string for depth
             while (iss >> token) {

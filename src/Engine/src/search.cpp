@@ -275,35 +275,39 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
         int oppKingIndex = PIECE_TYPE::King + ((oppColor == COLOR::BLACK) ? 6 : 0);
         int oppKingSquare = __builtin_ctzll(board.getPieceBitBoard(oppKingIndex));
         bool givesCheck = board.isSquareAttacked(oppKingSquare, oppColor ^ 1);
+        // PRINCIPAL VARIATION
+        if (legalMoves == 1) {
+            // first move gets a full-depth search
+            score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
+        } else {
+            /* LATE MOVE REDUCTIONS
+             * Reduce only if:
+             * Depth is high enough to matter
+             * Already searched most promising moves
+             * not currently in check
+             * is NOT a killerMove
+             */
+            if (depth >= 3  && legalMoves > 3 && !isCapture && !inCheck && !isKiller && !givesCheck) {
+                int reduction = 1; // base reduction
 
-        /* LATE MOVE REDUCTIONS
-         * Reduce only if:
-         * Depth is high enough to matter
-         * Already searched most promising moves
-         * not currently in check
-         * is NOT a killerMove
-         */
-        if (depth >= 3  && legalMoves > 3 && !isCapture && !inCheck && !isKiller && !givesCheck) {
-            int reduction = 1; // base reduction
+                // reduce moves that are sorted extremely far back
+                if (legalMoves > 6) {
+                    reduction = 2;
+                }
 
-            // reduce moves that are sorted extremely far back
-            if (legalMoves > 6) {
-                reduction = 2;
-            }
+                // Search with reduced depth
+                score = -negamax(board, depth - 1 - reduction, -beta, -alpha, ply + 1);
 
-            // Search with reduced depth
-            score = -negamax(board, depth - 1 - reduction, -beta, -alpha, ply + 1);
-
-            // If the move is very good, re-search at full depth
-            if (score > alpha) {
+                // If the move is very good, re-search at full depth
+                if (score > alpha) {
+                    score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
+                }
+            } else {
+                // --- NEGAMAX LOGIC ---
+                // normal full-depth search for captures, killers, in-check, etc
                 score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
             }
-        } else {
-            // --- NEGAMAX LOGIC ---
-            // normal full-depth search for captures, killers, in-check, etc
-            score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
         }
-
         unmakeMove(move, board);
 
         // Keep the highest score
