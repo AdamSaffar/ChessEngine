@@ -14,13 +14,28 @@
 
 #define MAX_PLY 64
 unsigned long long nodesSearched = 0; // cumulative total node count
-
 int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
 int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
 const int KILLER_1_SCORE = 90000;
 const int KILLER_2_SCORE = 80000;
+
+bool stopSearch = false;
+long long searchTimeLimit = -1; // time allowed in milliseconds
+std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
+
+void checkTime() {
+    if (searchTimeLimit == -1) return;
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStartTime).count();
+
+    if (elapsed >= searchTimeLimit) {
+        stopSearch = true;
+    }
+}
+
 // Most Valuable Victim - Least Valuable Attacker [Victim][Attacker]
 // Victim Base Scores: Pawn = 100, Knight = 200, Bishop = 300, Rook = 400, Queen = 500
 // Attacker Adjustments: Pawn += 5, Knight += 4, Bishop += 3, Rook += 2, Queen += 1, King += 0
@@ -196,6 +211,13 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     }
     nodesSearched++; // increment node count
 
+    // Check time every 2048 nodes (checking every node is computationaly expensive)
+    if ((nodesSearched & 2047) == 0) {
+        checkTime();
+    }
+    // instantly return the search if time is up
+    if (stopSearch) return 0;
+
     int originalAlpha = alpha;
     int ttMove = 0;
 
@@ -295,17 +317,22 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
                     reduction = 2;
                 }
 
-                // Search with reduced depth
-                score = -negamax(board, depth - 1 - reduction, -beta, -alpha, ply + 1);
+                // Search with reduced depth and a zero window
+                score = -negamax(board, depth - 1 - reduction, -alpha - 1, -alpha, ply + 1);
 
-                // If the move is very good, re-search at full depth
-                if (score > alpha) {
+            } else {
+                // if LMR didnt apply, force PVS
+                score = alpha + 1;
+            }
+            // If the move is very good, re-search at full depth
+            if (score > alpha) {
+                // search at full depth with a zero window
+                score = -negamax(board, depth - 1, -alpha - 1, -alpha, ply + 1);
+
+                // re-search with full window
+                if (score > alpha && score < beta) {
                     score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
                 }
-            } else {
-                // --- NEGAMAX LOGIC ---
-                // normal full-depth search for captures, killers, in-check, etc
-                score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
             }
         }
         unmakeMove(move, board);
@@ -414,6 +441,9 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
         int score = -negamax(board, depth - 1, -beta, -alpha, 1);
 
         unmakeMove(move, board);
+
+        // instantly abort if time ran out
+        if (stopSearch) break;
 
         if (score > maxScore) {
             maxScore = score;

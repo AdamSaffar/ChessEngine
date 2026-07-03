@@ -19,6 +19,9 @@
 extern unsigned long long nodesSearched;
 extern int killerMoves[MAX_PLY][2];
 extern int historyTable[2][64][64];
+extern bool stopSearch;
+extern long long searchTimeLimit; // time allowed in milliseconds
+extern std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
 
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
@@ -147,31 +150,63 @@ int main() {
                 }
             }
         } else if (command == "go") {
-            int targetDepth = 9;
+            int targetDepth = MAX_PLY; // default to maximum depth
+            long long wtime = -1, btime = -1, winc = 0, binc = 0, moveTime = -1;
             std::string token;
             // read input string for depth
             while (iss >> token) {
-                if (token == "depth") {
-                    iss >> targetDepth;
+                if (token == "depth") iss >> targetDepth;
+                else if (token == "wtime") iss >> wtime;
+                else if (token == "btime") iss >> btime;
+                else if (token == "winc") iss >> winc;
+                else if (token == "binc") iss >> binc;
+                else if (token == "movetime") iss >> moveTime;
+            }
+
+            // calculate time we can spend
+            long long timeLimit = -1;
+            if (moveTime != -1) {
+                timeLimit = moveTime; // GUI request exact move time
+            } else if (wtime != -1 && btime != -1) {
+                int color = board.getSideToMove();
+                long long myTime = (color == COLOR::WHITE) ? wtime : btime;
+                long long myInc = (color == COLOR::WHITE) ? winc : binc;
+
+                // spend 1 / 30th of remaining time + half increment
+                timeLimit = (myTime / 30) + (myInc / 2);
+
+                // safety buffer
+                if (timeLimit > myTime - 50) {
+                    timeLimit = std::max(10LL, myTime - 50);
                 }
             }
+            // reset state for each new search
+            searchTimeLimit = timeLimit;
+            stopSearch = false;
+            int bestMoveOverall = 0;
             nodesSearched = 0; // reset node count
-
+            searchStartTime = std::chrono::steady_clock::now();
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
+                if (stopSearch) {
+                    // if time ran out mid-depth, the move in bestMoveToPlay is incomplete.
+                    // break loop and rely on move from previously completed depth
+                    break;
+                }
+                bestMoveOverall = bestMoveToPlay;
             }
 
-            if (bestMoveToPlay == 0) {
+            if (bestMoveOverall == 0) {
                 // add safety catch
                 std::cout << "bestmove 0000" << std::endl;
             } else {
                 // translate start and target squares
-                std::string computerMove = indexToChessNotation(getStart(bestMoveToPlay)) +
-                                           indexToChessNotation(getTarget(bestMoveToPlay));
+                std::string computerMove = indexToChessNotation(getStart(bestMoveOverall)) +
+                                           indexToChessNotation(getTarget(bestMoveOverall));
                 // handle promotion flags
-                int flag = getFlag(bestMoveToPlay);
+                int flag = getFlag(bestMoveOverall);
                 if (flag == PR_QUEEN || flag == PC_QUEEN) {
                     computerMove += 'q';
                 } else if (flag == PR_ROOK || flag == PC_ROOK) {
