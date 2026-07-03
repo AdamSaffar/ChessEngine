@@ -18,6 +18,7 @@
 
 extern unsigned long long nodesSearched;
 extern int killerMoves[MAX_PLY][2];
+extern int historyTable[2][64][64];
 
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
@@ -155,8 +156,7 @@ int main() {
                 }
             }
             nodesSearched = 0; // reset node count
-            // clear killer moves array
-            std::memset(killerMoves, 0, sizeof(killerMoves));
+
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
@@ -202,6 +202,11 @@ int main() {
             }
         } else if (command == "ucinewgame") {
             clearTT(); // wipe memory
+
+            // clear killer moves array
+            std::memset(killerMoves, 0, sizeof(killerMoves));
+            // clear history table
+            std::memset(historyTable, 0, sizeof(historyTable));
         }
     }
 

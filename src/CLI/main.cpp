@@ -13,6 +13,8 @@
 
 extern unsigned long long nodesSearched;
 extern int killerMoves[MAX_PLY][2];
+extern int historyTable[2][64][64];
+
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
     std::string result = "";
@@ -70,6 +72,10 @@ int main() {
     std::cout << "=====================================\n";
     std::cout << "Type moves in format 'e2e4' or 'quit'. King side castle: O-O, Queen side castle: O-O-O\n";
 
+    // clear killer moves array
+    std::memset(killerMoves, 0, sizeof(killerMoves));
+    // clear history table
+    std::memset(historyTable, 0, sizeof(historyTable));
 
     while (true) {
         board.printBoard();
@@ -143,8 +149,6 @@ int main() {
         else {
 
             nodesSearched = 0; // reset node count
-            // clear killer moves array
-            std::memset(killerMoves, 0, sizeof(killerMoves));
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 11; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();

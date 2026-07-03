@@ -17,6 +17,7 @@
 
 extern unsigned long long nodesSearched;
 extern int killerMoves[MAX_PLY][2];
+extern int historyTable[2][64][64];
 
 void drawBoard(sf::RenderWindow& window, float squareSize) {
     // Chess.com theme colors
@@ -144,6 +145,13 @@ int main() {
     int startSquare = -1; // remember which square the piece was picked up from
     int targetSquare = -1;
     int draggedPiece = -1; // remember what piece is being dragged
+
+    // clear killer moves array
+    std::memset(killerMoves, 0, sizeof(killerMoves));
+    // clear history table
+    std::memset(historyTable, 0, sizeof(historyTable));
+
+
     // run the program as long as the window is open
     while (window.isOpen()) {
         MoveList moveList;
@@ -173,8 +181,7 @@ int main() {
         if (board.getSideToMove() == COLOR::BLACK) {
 
             nodesSearched = 0; // reset node count
-            // clear killer moves array
-            std::memset(killerMoves, 0, sizeof(killerMoves));
+
             // iterative deepening
             for (int currentDepth = 1; currentDepth <= 8; currentDepth++) {
                 auto startTime = std::chrono::steady_clock::now();
