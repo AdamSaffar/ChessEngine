@@ -13,6 +13,8 @@
 #include "../Engine/include/move.h"
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
+#include "../Engine/include/evaluation.h"
+
 #define MAX_PLY 64
 
 extern unsigned long long nodesSearched;
@@ -108,7 +110,8 @@ int main() {
     initAllMoveGen();
     initZobrist(); // init random hash keys
     initTT(64); // init transposition table
-
+    initPawnMasks(); // init pawn structure masks
+    
     Board board;
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
     board.setHashKey(generateHashKey(board)); // generate zobrist key

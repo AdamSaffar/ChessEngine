@@ -181,4 +181,5 @@ const int phaseWeights[12] = {
 };
 
 int evaluate(const Board& board);
+void initPawnMasks();
 #endif //CHESSENGINE_EVALUATION_H

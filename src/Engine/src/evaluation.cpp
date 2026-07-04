@@ -58,3 +58,53 @@ int evaluate(const Board& board) {
     int turn = board.getSideToMove();
     return (turn == COLOR::WHITE) ? finalEvalScore : -finalEvalScore;
 }
+
+U64 fileMasks[8];          // [file]
+U64 isolatedMasks[8];      // [file]
+U64 whitePassedMasks[64];  // [square]
+U64 blackPassedMasks[64];  // [square]
+
+void initPawnMasks() {
+    U64 fileA = 0x0101010101010101ULL; // equivalently: 00000001 00000001 00000001 00000001 00000001 00000001 00000001 00000001
+
+    // generate file masks
+    for (int file = 0; file < 8; file++) {
+        fileMasks[file] = fileA << file;
+    }
+
+    // generate isolatedMasks
+    for (int file = 0; file < 8; file++) {
+
+        isolatedMasks[file] = 0ULL;
+
+        if (file == 0) { // if its on the A-file, ONLY turn on the bits of the file to the right
+            isolatedMasks[file] |= fileMasks[file + 1];
+        } else if (file == 7) { // if its on the H-file, ONLY turn on the bits of the file to the left
+            isolatedMasks[file] |= fileMasks[file - 1];
+        } else { // Otherwise turn on both files to the left and right
+            isolatedMasks[file] |= fileMasks[file - 1] | fileMasks[file + 1];
+        }
+    }
+
+    // generate passed pawn masks for WHITE and BLACK
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            int square = rank * 8 + file;
+
+            // runway is pawns file + adjacent files
+            U64 runway = fileMasks[file] |  isolatedMasks[file];
+
+            // white pawns march up the board
+            whitePassedMasks[square] = 0ULL;
+            for (int r = rank + 1; r < 8; r++) {
+                whitePassedMasks[square] |= (runway & (0xFFULL << (r * 8)));
+            }
+
+            // Black pawns march down the board
+            blackPassedMasks[square] = 0ULL;
+            for (int r = rank - 1; r >= 0; r--) {
+                blackPassedMasks[square] |= (runway & (0xFFULL << (r * 8)));
+            }
+        }
+    }
+}
