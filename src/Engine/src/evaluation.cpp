@@ -3,11 +3,31 @@
 //
 #include "include/board.h"
 #include "include/evaluation.h"
+
+// Constant penalty/bonus for Pawn Structure
+const int DOUBLED_PAWN_MG = -10;
+const int DOUBLED_PAWN_EG = -20;
+const int ISOLATED_PAWN_MG = -15;
+const int ISOLATED_PAWN_EG = -30;
+
+// Scaled bonuses based on how far the pawn has advanced
+const int PASSED_PAWN_MG[8] = {0, 10, 10, 15, 25, 50, 90, 0};
+const int PASSED_PAWN_EG[8] = {0, 10, 20, 40, 70, 120, 200, 0};
+
+// pre-calculated pawn masks
+U64 fileMasks[8];          // [file]
+U64 isolatedMasks[8];      // [file]
+U64 whitePassedMasks[64];  // [square]
+U64 blackPassedMasks[64];  // [square]
 int evaluate(const Board& board) {
     int midGameScore{};
     int endGameScore{};
     int totalPhaseWeight{};
     int finalEvalScore{};
+
+    // Pawn structure evaluation
+    evaluatePawns(board, midGameScore, endGameScore);
+
     // loop through all 12 piece types
     for (int pieceType = 0; pieceType < 12; pieceType++) {
         U64 pieceBitBoard = board.getPieceBitBoard(pieceType);
@@ -22,7 +42,7 @@ int evaluate(const Board& board) {
             totalPhaseWeight += phaseWeights[pieceType]; // Use pieceType(0-11 index) since our phaseWeights holds 12 elements
 
             // Lookup Standard Piece Values
-            int material = pieceValues[pieceType];
+            int material = pieceValues[normalizedPiece];
 
             // Flip the square index if we are looking at White piece(White pieces index: 0-5)
             int pstSquare = (pieceType < 6) ? (square ^ 56) : square; // (^ 56) finds the mirror square
@@ -59,11 +79,66 @@ int evaluate(const Board& board) {
     return (turn == COLOR::WHITE) ? finalEvalScore : -finalEvalScore;
 }
 
-U64 fileMasks[8];          // [file]
-U64 isolatedMasks[8];      // [file]
-U64 whitePassedMasks[64];  // [square]
-U64 blackPassedMasks[64];  // [square]
+void evaluatePawns(const Board& board, int& mgScore, int& egScore) {
+    U64 whitePawns = board.getPieceBitBoard(0); // White Pawns index
+    U64 blackPawns = board.getPieceBitBoard(6); // Black Pawns index
 
+    // --- EVALUATE WHITE PAWNS ---
+    U64 wp = whitePawns;
+    while (wp != 0ULL) {
+        int sq = __builtin_ctzll(wp);
+        int file = sq % 8;
+
+        // DOUBLED PAWNS
+        // XOR the file with the mask. If anything is left, its doubled.
+        if ((whitePawns & fileMasks[file]) ^ (1ULL << sq)) {
+            mgScore += DOUBLED_PAWN_MG;
+            egScore += DOUBLED_PAWN_EG;
+        }
+
+        // ISOLATED PAWNS
+        // if the adjacent files have no friendly pawns
+        if ((whitePawns & isolatedMasks[file]) == 0ULL) {
+            mgScore += ISOLATED_PAWN_MG;
+            egScore += ISOLATED_PAWN_EG;
+        }
+
+        // PASSED PAWNS
+        // If foward runway has zero enemy pawns
+        if ((blackPawns & whitePassedMasks[sq]) == 0ULL) {
+            int rank = sq / 8;
+            mgScore += PASSED_PAWN_MG[rank];
+            egScore += PASSED_PAWN_EG[rank];
+        }
+        wp &= (wp - 1);
+    }
+    // --- EVALUATE BLACK PAWNS
+    U64 bp = blackPawns;
+    while (bp != 0ULL) {
+        int sq = __builtin_ctzll(bp);
+        int file = sq % 8;
+
+        // DOUBLED PAWNS
+        if ((blackPawns & fileMasks[file]) ^ (1ULL << sq)) {
+            mgScore -= DOUBLED_PAWN_MG;
+            egScore -= DOUBLED_PAWN_EG;
+        }
+
+        // ISOLATED PAWNS
+        if ((blackPawns & isolatedMasks[file]) == 0ULL) {
+            mgScore -= ISOLATED_PAWN_MG;
+            egScore -= ISOLATED_PAWN_EG;
+        }
+
+        // PASSED PAWNS
+        if ((whitePawns & blackPassedMasks[sq]) == 0ULL) {
+            int rank = 7 - (sq / 8);
+            mgScore -= PASSED_PAWN_MG[rank];
+            egScore -= PASSED_PAWN_EG[rank];
+        }
+        bp &= (bp - 1);
+    }
+}
 void initPawnMasks() {
     U64 fileA = 0x0101010101010101ULL; // equivalently: 00000001 00000001 00000001 00000001 00000001 00000001 00000001 00000001
 
