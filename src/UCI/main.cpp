@@ -25,6 +25,8 @@ extern bool stopSearch;
 extern long long searchTimeLimit; // time allowed in milliseconds
 extern std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
 
+int numThreads = 1; // default to single-thread
+
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
     std::string result = "";
@@ -36,6 +38,9 @@ std::string indexToChessNotation(int sq) {
 void printEngineInfo() {
     std::cout << "id name Dummy" << std::endl;
     std::cout << "id author Adam S" << std::endl;
+
+    // support threading, default 1, max is 20 threads (My CPU is i7-12700, which has 20 threads)
+    std::cout << "option name Threads type spin default 1 min 1 max 20" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
@@ -70,7 +75,9 @@ int main() {
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
-    initTT(64); // init transposition table
+
+    // 512 MB ~= 32,000,000 unique board states
+    initTT(512); // increase default TT size to 512 MB to account for multithreading
     initPawnMasks(); // init pawn structure masks
 
     Board board;
@@ -192,8 +199,23 @@ int main() {
             searchStartTime = std::chrono::steady_clock::now();
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
+
+                // container to hold threads
+                std::vector<std::thread> helpers;
+                // pass board by value so each thread gets its own physical copy
+                for (int i = 1; i < numThreads; i++) {
+                    helpers.emplace_back(searchHelper, board, currentDepth);
+                }
+
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
+
+                // Wait for all helper threads to finish this depth before continuing
+                for (auto& t : helpers) {
+                    if (t.joinable()) {
+                        t.join();
+                    }
+                }
                 if (stopSearch) {
                     // if time ran out mid-depth, the move in bestMoveToPlay is incomplete.
                     // break loop and rely on move from previously completed depth
@@ -246,6 +268,17 @@ int main() {
             std::memset(killerMoves, 0, sizeof(killerMoves));
             // clear history table
             std::memset(historyTable, 0, sizeof(historyTable));
+        } else if (command.find("setoption name Threads value") != std::string::npos) {
+            // Parse thread count
+            std::istringstream iss(command);
+            std::string token;
+            while (iss >> token) {
+                if (token == "value") {
+                    iss >> numThreads;
+                    if (numThreads < 1) numThreads = 1; // safety catch
+                    break;
+                }
+            }
         }
     }
     return 0;

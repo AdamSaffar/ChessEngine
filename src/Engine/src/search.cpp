@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <atomic>
 #include <algorithm>
 #include <include/search.h>
 #include <include/board.h>
@@ -13,9 +14,9 @@
 #include <include/transposition.h>
 
 #define MAX_PLY 64
-unsigned long long nodesSearched = 0; // cumulative total node count
-int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
-int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
+std::atomic<unsigned long long> nodesSearched = 0; // cumulative total node count
+thread_local int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
+thread_local int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
 const int KILLER_1_SCORE = 90000;
@@ -24,6 +25,8 @@ const int KILLER_2_SCORE = 80000;
 bool stopSearch = false;
 long long searchTimeLimit = -1; // time allowed in milliseconds
 std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
+
+
 
 
 bool isRepetition(const Board& board) {
@@ -437,6 +440,51 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     return maxScore;
 }
 
+/** Silent search function designed strictly for background helper threads */
+void searchHelper(Board board, int depth) {
+    int maxScore = -INF;
+    int alpha = -INF;
+    int beta = INF;
+
+    int ttMove = 0;
+    probeTT(board.getHashKey(), depth, alpha, beta, ttMove);
+
+    MoveList moveList;
+    generateMoves(moveList, board);
+
+    int moveScores[256];
+    for (int i = 0; i < moveList.count; i++) {
+        moveScores[i] = scoreMove(moveList.moves[i], board, ttMove, 0);
+    }
+    sortMoves(moveList, moveScores);
+
+    int legalMoves = 0;
+
+    for (int i = 0; i < moveList.count; i++) {
+        int move = moveList.moves[i];
+        if (!makeMove(move, board)) continue;
+
+        legalMoves++;
+        int score;
+
+        if (legalMoves == 1) {
+            score = -negamax(board, depth - 1, -beta, -alpha, 1);
+        } else {
+            score = -negamax(board, depth - 1, -alpha - 1, -alpha, 1);
+            if (score > alpha && score < beta) {
+                score = -negamax(board, depth - 1, -beta, -alpha, 1);
+            }
+        }
+        unmakeMove(move, board);
+
+        if (stopSearch) break;
+        if (score > maxScore) {
+            maxScore = score;
+        }
+
+        alpha = std::max(alpha, maxScore);
+    }
+}
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
 void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
