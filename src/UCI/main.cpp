@@ -18,9 +18,10 @@
 
 #define MAX_PLY 64
 
-extern unsigned long long nodesSearched;
-extern int killerMoves[MAX_PLY][2];
-extern int historyTable[2][64][64];
+extern std::atomic<unsigned long long> nodesSearched;
+extern thread_local int killerMoves[MAX_PLY][2];
+extern thread_local int historyTable[2][64][64];
+
 extern bool stopSearch;
 extern long long searchTimeLimit; // time allowed in milliseconds
 extern std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
@@ -39,8 +40,8 @@ void printEngineInfo() {
     std::cout << "id name Dummy" << std::endl;
     std::cout << "id author Adam S" << std::endl;
 
-    // support threading, default 1, max is 20 threads (My CPU is i7-12700, which has 20 threads)
-    std::cout << "option name Threads type spin default 1 min 1 max 20" << std::endl;
+    // support threading, default 1, max set to 256 threads (My CPU is i7-12700, which has 20 threads)
+    std::cout << "option name Threads type spin default 1 min 1 max 256" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 

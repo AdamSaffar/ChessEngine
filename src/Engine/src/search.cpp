@@ -15,7 +15,7 @@
 
 #define MAX_PLY 64
 std::atomic<unsigned long long> nodesSearched = 0; // cumulative total node count
-thread_local int killerMoves[MAX_PLY][2]; // [ply][slot 0 or 1]
+thread_local int killerMoves[MAX_PLY][2]= {0}; // [ply][slot 0 or 1]
 thread_local int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
@@ -25,9 +25,6 @@ const int KILLER_2_SCORE = 80000;
 bool stopSearch = false;
 long long searchTimeLimit = -1; // time allowed in milliseconds
 std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
-
-
-
 
 bool isRepetition(const Board& board) {
     // repetition requries a min of 4 plies
