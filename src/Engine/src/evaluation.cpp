@@ -39,7 +39,7 @@ int evaluate(const Board& board) {
             int normalizedPiece = pieceType % 6;
 
             // Update Phase Weight
-            totalPhaseWeight += phaseWeights[pieceType]; // Use pieceType(0-11 index) since our phaseWeights holds 12 elements
+            totalPhaseWeight += phaseWeights[normalizedPiece]; // Use pieceType(0-11 index) since our phaseWeights holds 12 elements
 
             // Lookup Standard Piece Values
             int material = pieceValues[normalizedPiece];
@@ -106,9 +106,9 @@ void evaluatePawns(const Board& board, int& mgScore, int& egScore) {
         // PASSED PAWNS
         // If foward runway has zero enemy pawns
         if ((blackPawns & whitePassedMasks[sq]) == 0ULL) {
-            int rank = sq / 8;
-            mgScore += PASSED_PAWN_MG[rank];
-            egScore += PASSED_PAWN_EG[rank];
+            int relative_rank = sq / 8;
+            mgScore += PASSED_PAWN_MG[relative_rank];
+            egScore += PASSED_PAWN_EG[relative_rank];
         }
         wp &= (wp - 1);
     }
@@ -132,9 +132,9 @@ void evaluatePawns(const Board& board, int& mgScore, int& egScore) {
 
         // PASSED PAWNS
         if ((whitePawns & blackPassedMasks[sq]) == 0ULL) {
-            int rank = 7 - (sq / 8);
-            mgScore -= PASSED_PAWN_MG[rank];
-            egScore -= PASSED_PAWN_EG[rank];
+            int relative_rank = 7 - (sq / 8);
+            mgScore -= PASSED_PAWN_MG[relative_rank];
+            egScore -= PASSED_PAWN_EG[relative_rank];
         }
         bp &= (bp - 1);
     }

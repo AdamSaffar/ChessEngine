@@ -66,9 +66,11 @@ int scoreMove(int move, Board& board, int ttMove, int ply) {
     int target = getTarget(move);
 
     // Sorting non-capture moves:
-    // 1. First Killer Move 2. Second Killer Move 3. History Table move 4. All others
+    // 1. Quiet Queen Promotions 2. First Killer Move 3. Second Killer Move 4. History Table move 5. All others
     if (!isCapture) {
-        if (move == killerMoves[ply][0]) {
+        if (flag == PR_QUEEN) {
+            return CAPTURE_BASE_SCORE - 50;
+        } else if (move == killerMoves[ply][0]) {
             return KILLER_1_SCORE;
         } else if (move == killerMoves[ply][1]) {
             return KILLER_2_SCORE;
@@ -76,7 +78,7 @@ int scoreMove(int move, Board& board, int ttMove, int ply) {
             // cap the history score just below the killer 2 score to protect hierarchy
             return std::min(historyTable[color][start][target], KILLER_2_SCORE - 1);
         } else {
-            return 0; // Non-capture non-killer non-history moves get sorted to back
+            return 0; // Non-capture non-queen-promos non-killer non-history moves get sorted to back
         }
     }
 
@@ -116,8 +118,10 @@ int quiescence(Board& board, int alpha, int beta) {
 
     // if currentSCore is already enough for beta cutoff, stop here
     if (currentScore >= beta) {
-        return beta;
+        return currentScore;
     }
+    // baseline score is standing pat
+    int maxScore = currentScore;
 
     // update highest score
     if (currentScore > alpha) {
@@ -135,7 +139,6 @@ int quiescence(Board& board, int alpha, int beta) {
     sortMoves(moveList, moveScores);
 
     for (int i = 0; i < moveList.count; i++) {
-        nodesSearched++; // increment node count
         int move = moveList.moves[i];
         int flag = getFlag(move);
 
@@ -148,19 +151,24 @@ int quiescence(Board& board, int alpha, int beta) {
         if (!makeMove(move, board)) {
             continue; // illegal move
         }
+        nodesSearched++; // increment node count
+
         // recurse until there are no captures left
         int score = -quiescence(board, -beta, -alpha);
         unmakeMove(move, board);
 
-        // Alpha-beta pruning
-        if (score >= beta) {
-            return beta; // FIX: Cut off the dead branch!
+        // keep the highest score found
+        if (score > maxScore) {
+            maxScore = score;
         }
-        if (score > alpha) {
-            alpha = score;
+
+        // Alpha-beta pruning
+        alpha = std::max(alpha, maxScore);
+        if (alpha >= beta) {
+            return maxScore; // FIX: Cut off the dead branch!
         }
     }
-    return alpha;
+    return maxScore;
 }
 
 // helper func to make null move
@@ -228,9 +236,17 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     if (ttScore != UNKNOWN_SCORE) {
         return ttScore;
     }
+    // Check King Status
+    int friendlyColor = board.getSideToMove();
+    int kingPieceIndex = PIECE_TYPE::King + ((friendlyColor == COLOR::BLACK) ? 6 : 0);
+    U64 kingBitBoard = board.getPieceBitBoard(kingPieceIndex);
+    int kingSquare = __builtin_ctzll(kingBitBoard);
+    int colorOffset = (friendlyColor == COLOR::BLACK) ? 6 : 0;
 
-    // Base case: Reached the end depth
-    if (depth == 0) {
+    bool inCheck = board.isSquareAttacked(kingSquare, friendlyColor ^ 1);
+
+    // Base case: Reached the end depth and not in check
+    if (depth <= 0 && !inCheck) {
         return quiescence(board, alpha, beta); // q-search resolves captures and returns eval
     }
     // Start with the worst possible score
@@ -238,20 +254,12 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     int bestMoveThisNode = 0;
     int legalMoves = 0; // track how many moves played
 
-    int friendlyColor = board.getSideToMove();
-    int kingPieceIndex = PIECE_TYPE::King + ((friendlyColor == COLOR::BLACK) ? 6 : 0);
-    U64 kingBitBoard = board.getPieceBitBoard(kingPieceIndex);
-    int kingSquare = __builtin_ctzll(kingBitBoard);
-    int colorOffset = (friendlyColor == COLOR::BLACK) ? 6 : 0;
-
     // ---NULL MOVE PRUNING---
     int R = 2; // depth reduction factor
 
     // check if current player has non-pawn material
     bool pawnsOnly = (board.pieceBitBoards[Knight + colorOffset] | board.pieceBitBoards[Bishop + colorOffset] |
     board.pieceBitBoards[Rook + colorOffset]  | board.pieceBitBoards[Queen + colorOffset]) == 0ULL;
-
-    bool inCheck = board.isSquareAttacked(kingSquare, friendlyColor ^ 1);
 
     // only attempt NMP if: not in check, enough depth to justify reduction, and non-pawn material remaining on board
     if (depth >= 3 && !inCheck && !pawnsOnly) {
@@ -337,6 +345,8 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
         }
         unmakeMove(move, board);
 
+        if (stopSearch) return 0;
+
         // Keep the highest score
         if (score > maxScore) {
             maxScore = score;
@@ -383,14 +393,14 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
                     }
                 }
             }
-            break;
+            return maxScore; // FIX: return immediately
         }
     }
     // Engine has reached a board state where it is impossible to make a move
     // Game is over: Either computer is checkmated or Stalemated
     if (legalMoves == 0) {
         if (inCheck) {
-            return -MATE_VALUE; // Computer is checkmated
+            return -MATE_VALUE + ply; // Computer is checkmated(add ply to prefer faster checkmates)
         } else {
             return 0; //Stalemate
         }
@@ -429,6 +439,8 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
     // Sort move list based on scores(highest to lowest)
     sortMoves(moveList, moveScores);
 
+    int legalMoves = 0;
+
     for (int i = 0; i < moveList.count; i++) {
         int move = moveList.moves[i];
         if (!makeMove(move, board)) continue;
@@ -437,8 +449,20 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
         if (bestRootMove == 0) {
             bestRootMove = move;
         }
-        // pass inverted bounds
-        int score = -negamax(board, depth - 1, -beta, -alpha, 1);
+
+        legalMoves++;
+        int score;
+
+        // Principal Variation Search at root
+        if (legalMoves == 1) {
+            score = -negamax(board, depth - 1, -beta, -alpha, 1);
+        } else {
+            score = -negamax(board, depth - 1, -alpha - 1, -alpha, 1);
+            if (score > alpha && score < beta) {
+                // Re-search if it beats alpha
+                score = -negamax(board, depth - 1, -beta, -alpha, 1);
+            }
+        }
 
         unmakeMove(move, board);
 
@@ -453,7 +477,17 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
         // update minimum acceptable score(alpha)
         alpha = std::max(alpha, maxScore);
     }
-    bestMoveToPlay = bestRootMove;
+    if (!stopSearch) {
+        bestMoveToPlay = bestRootMove;
+
+        // save root result
+        storeTT(board.getHashKey(), depth, HASH_EXACT, maxScore, bestRootMove);
+    } else if (bestMoveToPlay == 0) {
+        bestMoveToPlay = bestRootMove; // fallback
+    }
+
+    // dont print garbage data
+    if (stopSearch) return;
 
     // Calculate elapsed time
     auto end = std::chrono::steady_clock::now();

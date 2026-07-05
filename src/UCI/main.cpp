@@ -15,6 +15,7 @@
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
 #include "../Engine/include/evaluation.h"
+
 #define MAX_PLY 64
 
 extern unsigned long long nodesSearched;
@@ -65,6 +66,7 @@ void parseMove(std::string input, int& start, int& target, char& promotedPiece) 
 
 
 int main() {
+    setbuf(stdout, NULL);
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
@@ -246,6 +248,5 @@ int main() {
             std::memset(historyTable, 0, sizeof(historyTable));
         }
     }
-
     return 0;
 }

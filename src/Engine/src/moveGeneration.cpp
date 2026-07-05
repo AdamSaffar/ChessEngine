@@ -414,6 +414,15 @@ void generateMoves(MoveList& list, const Board &board) {
     int turn = board.getSideToMove();
     U64 friendlyPieces = board.getOccupancies(turn); // aka engines pieces(only called when its the engines turn)
     U64 enemyPieces = board.getOccupancies(turn ^ 1); // XOR trick
+
+    // FIX: Prevent illegal king captures
+    int enemyKingIndex = PIECE_TYPE::King + ((turn == COLOR::WHITE) ? 6 : 0);
+    U64 enemyKingBoard = board.getPieceBitBoard(enemyKingIndex);
+
+    // Treat enemy king as illegal square to land on
+    friendlyPieces |= enemyKingBoard;
+    enemyPieces &= ~enemyKingBoard;
+
     U64 allPieces = board.getOccupancies(COLOR::BOTH);
     U64 emptySquares = ~allPieces; // '~' flips bits
 
