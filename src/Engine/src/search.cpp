@@ -25,6 +25,22 @@ bool stopSearch = false;
 long long searchTimeLimit = -1; // time allowed in milliseconds
 std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
 
+
+bool isRepetition(const Board& board) {
+    // repetition requries a min of 4 plies
+    // stop search at the halfMoveClock limit
+    int limit = board.historyPly - board.halfMoveClock;
+    if (limit < 0) limit = 0; // safety catch
+
+    // Loop backwards for last 2 full moves
+    for (int i = board.historyPly - 4; i >= limit; i -= 2) {
+        if (board.repetitionTable[i] == board.hashKey) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void checkTime() {
     if (searchTimeLimit == -1) return;
 
@@ -213,6 +229,11 @@ void unmakeNullMove(Board& board) {
  * Negamax assumes every node wants to maximize its own score.
  */
 int negamax(Board& board, int depth, int alpha, int beta, int ply) {
+    // HANDLE DRAW BY REPETITION
+    // Check for repetition or 50-move rule
+    if (board.getHistoryPly() > 0 && (isRepetition(board) || board.getHalfMoveClock() >= 100)) {
+        return 0;
+    }
     // prevent array out of bounds
     if (ply >= MAX_PLY) {
         return  quiescence(board, alpha, beta);

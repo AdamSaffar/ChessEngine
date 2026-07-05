@@ -848,6 +848,9 @@ bool makeMove(uint16_t move, Board& board) {
     board.history[board.historyPly].halfMoveClock = board.halfMoveClock;
     board.history[board.historyPly].capturedPieceType = capturedPiece;
     board.history[board.historyPly].hashKey = board.hashKey;
+
+    // save hash key in repetition table
+    board.repetitionTable[board.historyPly] = board.hashKey;
     board.historyPly++;
 
     // XOR old global states before changing them
@@ -863,6 +866,16 @@ bool makeMove(uint16_t move, Board& board) {
         // Remove captured piece
         board.hashKey ^= pieceKeys[capturedPiece][targetSquare];
     }
+
+    // Increment the clock by default for every move
+    board.halfMoveClock++;
+
+    // If the move is a capture, OR if a pawn was moved, the half move clock resets to 0
+    bool isCapture = (flag == CAPTURE || flag == EN_PASSANT || (flag >= PC_KNIGHT && flag <= PC_QUEEN));
+    if (isCapture || (pieceType % 6) == PIECE_TYPE::Pawn) {
+        board.halfMoveClock = 0;
+    }
+
     // Pick up and put down piece
     board.pieceBitBoards[pieceType] &= ~(1ULL << startSquare); // Turn off start
     board.pieceBitBoards[pieceType] |= (1ULL << targetSquare); // Turn on target

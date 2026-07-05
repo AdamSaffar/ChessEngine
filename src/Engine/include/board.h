@@ -56,7 +56,8 @@ private:
     int fullMoveNumber = 1;
 
     // History stack
-    GameState history[512]; // Longest chess game was 538 half-moves 
+    GameState history[512]; // Longest chess game was 538 half-moves
+    U64 repetitionTable[512];
     // pointer to track current depth in the history stack
     int historyPly = 0;
 
@@ -75,6 +76,8 @@ public:
     inline U64 getPieceBitBoard(int pieceType) const { return pieceBitBoards[pieceType];}
     inline U64 getHashKey() const { return hashKey; }
     inline void setHashKey(U64 hashKey) {this->hashKey = hashKey;}
+    inline int getHistoryPly() const {return historyPly;}
+    inline int getHalfMoveClock() const {return halfMoveClock;}
     inline int getPieceAt(unsigned int startSquare) const {
         U64 squareMask = 1ULL << startSquare;
         // loop through all 12 bitoboards
@@ -235,5 +238,6 @@ public:
     friend void makeNullMove(Board& board);
     friend void unmakeNullMove(Board& board);
     friend int negamax(Board& board, int depth, int alpha, int beta, int ply);
+    friend bool isRepetition(const Board& board);
 };
 #endif //CHESSENGINE_BOARD_H
