@@ -29,48 +29,69 @@ void initTT(int megabytes) {
 void clearTT() {
     // loop through each cell and reset data
     for (int i = 0; i < ttEntryCount; i++) {
-        transpositionTable[i].zobristKey = 0;
-        transpositionTable[i].depth = 0;
-        transpositionTable[i].flag = 0;
-        transpositionTable[i].score = 0;
-        transpositionTable[i].bestMove = 0;
+        transpositionTable[i].checksum = 0ULL;
+        transpositionTable[i].data = 0ULL;
     }
 }
 // Write to Transposition table
 void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
     // find the correct array index
     int index = zobristKey % ttEntryCount;
+
+    // Depth represents lowest 8 bits
+    int exisitingDepth = (int)(transpositionTable[index].data & 0xFF);
+
     // REPLACEMENT: Only overwrite if new search is as deep or deeper
-    if (transpositionTable[index].depth <= depth) {
-        transpositionTable[index].zobristKey = zobristKey;
-        transpositionTable[index].depth = depth;
-        transpositionTable[index].flag = flag;
-        transpositionTable[index].score = score;
-        transpositionTable[index].bestMove = bestMove;
+    if (exisitingDepth <= depth) {
+        // pack the data into a single 64 bit integer
+        U64 data = ((U64)(uint32_t)score << 32) |
+            ((U64)(uint16_t)bestMove << 16) |
+            ((U64)(uint8_t)flag << 8) |
+            ((U64)(uint8_t)depth);
+
+        // create checksum
+        U64 checksum = zobristKey ^ data;
+
+        // Write to memory
+        transpositionTable[index].data = data;
+        transpositionTable[index].checksum = checksum;
     }
 }
 
 int probeTT(U64 zobristKey, int depth, int alpha, int beta, int& ttMove) {
     int index = zobristKey % ttEntryCount;
-    TTEntry entry = transpositionTable[index];
+    // Read entry from memory
+    U64 checksum = transpositionTable[index].checksum;
+    U64 data = transpositionTable[index].data;
+
 
     // Check if key matches the current board
-    if (entry.zobristKey == zobristKey) {
-        // Save the best move
-        ttMove = entry.bestMove;
+
+    // XOR trick: Since checksum = zobristKey ^ data. If we XOR checksum and data
+    // the result should exactly match the zobristKey
+    if ((checksum ^ data) == zobristKey) {
+
+        // Unpack data payload
+        int entryDepth = (int)(data & 0xFF);
+        int entryFlag  = (int)((data >> 8) & 0xFF);
+        int entryMove  = (int)((data >> 16) & 0xFFFF);
+        int entryScore = (int32_t)(data >> 32);
+
+        // Save best move for move ordering
+        ttMove = entryMove;
 
         // check if the saved memory is deep enough to skip search
-        if (entry.depth >= depth) {
+        if (entryDepth >= depth) {
             // We have the exact evaluation
-            if (entry.flag == HASH_EXACT) {
-                return entry.score;
+            if (entryFlag == HASH_EXACT) {
+                return entryScore;
             }
             // Score was Bad
-            if (entry.flag == HASH_ALPHA && entry.score <= alpha) {
+            if (entryFlag == HASH_ALPHA && entryScore <= alpha) {
                 return alpha;
             }
             // Score was good
-            if (entry.flag == HASH_BETA && entry.score >= beta) {
+            if (entryFlag == HASH_BETA && entryScore >= beta) {
                 return beta;
             }
         }

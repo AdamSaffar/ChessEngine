@@ -14,12 +14,20 @@ enum TT_FLAG {
 // signal a failed lookup
 const int UNKNOWN_SCORE = 1000000;
 // Single memory cell struct
-struct TTEntry { // Size of TTEntry: 24 bytes
+struct TTEntry { // Size of TTEntry: 16 bytes
+    /* Data represents depth, flag, score, and bestmove as one 64 bit integer like so:
+     * SCORE (32 bits) | MOVE (16 bits) | FLAG (8 bits) | DEPTH (8 bits)
+     */
+    U64 data;
+    U64 checksum; // Stores zobristKey ^ data
+
+    /*
     U64 zobristKey;
     int depth;
     int flag;
     int score;
     int bestMove;
+    */
 };
 
 void initTT(int megabytes);
