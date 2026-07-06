@@ -38,11 +38,31 @@ void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
     // find the correct array index
     int index = zobristKey % ttEntryCount;
 
-    // Depth represents lowest 8 bits
-    int exisitingDepth = (int)(transpositionTable[index].data & 0xFF);
+    U64 existingData = transpositionTable[index].data;
+    U64 existingChecksum = transpositionTable[index].checksum;
 
-    // REPLACEMENT: Only overwrite if new search is as deep or deeper
-    if (exisitingDepth <= depth) {
+    // Depth represents lowest 8 bits
+    int existingDepth = (int)(existingData & 0xFF);
+
+    // Check if the current entry belongs to the exact same board state
+    bool isSamePosition = ((existingChecksum ^ existingData) == zobristKey);
+
+    bool shouldReplace = false;
+
+    if (isSamePosition) {
+        // NO COLLISION: overwrite if new search is as deep or deeper
+        if (depth >= existingDepth || flag == HASH_EXACT) {
+            shouldReplace = true;
+        }
+    } else {
+        // HASH COLLISION: protect high-depth evaluations from low-depth evals from helper threads
+        if (depth >= existingDepth - 3) {
+            shouldReplace = true;
+        }
+    }
+
+    // Apply the save 
+    if (shouldReplace) {
         // pack the data into a single 64 bit integer
         U64 data = ((U64)(uint32_t)score << 32) |
             ((U64)(uint16_t)bestMove << 16) |
@@ -56,6 +76,7 @@ void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
         transpositionTable[index].data = data;
         transpositionTable[index].checksum = checksum;
     }
+
 }
 
 int probeTT(U64 zobristKey, int depth, int alpha, int beta, int& ttMove) {

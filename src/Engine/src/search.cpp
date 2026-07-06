@@ -14,9 +14,12 @@
 #include <include/transposition.h>
 
 #define MAX_PLY 64
+
 std::atomic<unsigned long long> nodesSearched = 0; // cumulative total node count
+thread_local int localNodeCounter = 0; // private counter for each thread
 thread_local int killerMoves[MAX_PLY][2]= {0}; // [ply][slot 0 or 1]
 thread_local int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
+
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
 const int KILLER_1_SCORE = 90000;
@@ -167,8 +170,10 @@ int quiescence(Board& board, int alpha, int beta) {
         if (!makeMove(move, board)) {
             continue; // illegal move
         }
-        nodesSearched++; // increment node count
-
+        localNodeCounter++; // increment node count
+        if ((localNodeCounter & 2047) == 0) {
+            nodesSearched += 2048;
+        }
         // recurse until there are no captures left
         int score = -quiescence(board, -beta, -alpha);
         unmakeMove(move, board);
@@ -238,10 +243,11 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     if (ply >= MAX_PLY) {
         return  quiescence(board, alpha, beta);
     }
-    nodesSearched++; // increment node count
+    localNodeCounter++; // atomic increment
 
-    // Check time every 2048 nodes (checking every node is computationaly expensive)
-    if ((nodesSearched & 2047) == 0) {
+    // Check time and update global atomic only once every 2048 nodes (checking every node is computationaly expensive)
+    if ((localNodeCounter & 2047) == 0) {
+        nodesSearched += 2048;
         checkTime();
     }
     // instantly return the search if time is up
@@ -339,16 +345,24 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
              * is NOT a killerMove
              */
             if (depth >= 3  && legalMoves > 3 && !isCapture && !inCheck && !isKiller && !givesCheck) {
-                int reduction = 1; // base reduction
+                // scale aggresively based on depth and move lateness
+                int reduction = 1 + (depth / 4) + (legalMoves / 6);
 
-                // reduce moves that are sorted extremely far back
-                if (legalMoves > 6) {
-                    reduction = 2;
+                // If this move isn't a killer, but it has historically
+                // caused cutoffs in other branches, trust it a bit more and reduce the penalty.
+                int color = board.getSideToMove();
+                int start = getStart(move);
+                int target = getTarget(move);
+
+                if (historyTable[color][start][target] > KILLER_2_SCORE / 2) {
+                    reduction -= 1; // Give it one ply back
                 }
-
-                // Search with reduced depth and a zero window
+                // never reduce the depth below 1
+                if (reduction >= depth) {
+                    reduction = depth - 1;
+                }
+                // search with reduced depth and zero window
                 score = -negamax(board, depth - 1 - reduction, -alpha - 1, -alpha, ply + 1);
-
             } else {
                 // if LMR didnt apply, force PVS
                 score = alpha + 1;
