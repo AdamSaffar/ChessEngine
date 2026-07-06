@@ -70,7 +70,14 @@ void parseMove(std::string input, int& start, int& target, char& promotedPiece) 
     //return true;
 }
 
+void helperThreadLoop(Board board, int targetDepth) {
+    // helper runs its own iterative deepening
+    for (int d = 1; d <= targetDepth; d++) {
+        searchHelper(board, d);
 
+        if (stopSearch) break;
+    }
+}
 int main() {
     setbuf(stdout, NULL);
     // Initialize Engine
@@ -198,25 +205,21 @@ int main() {
             int bestMoveOverall = 0;
             nodesSearched = 0; // reset node count
             searchStartTime = std::chrono::steady_clock::now();
+
+            // container to hold threads
+            std::vector<std::thread> helpers;
+            // pass board by value so each thread gets its own physical copy
+            for (int i = 1; i < numThreads; i++) {
+                helpers.emplace_back(helperThreadLoop, board, targetDepth);
+            }
+
             // find best move via iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
 
-                // container to hold threads
-                std::vector<std::thread> helpers;
-                // pass board by value so each thread gets its own physical copy
-                for (int i = 1; i < numThreads; i++) {
-                    helpers.emplace_back(searchHelper, board, currentDepth);
-                }
 
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
 
-                // Wait for all helper threads to finish this depth before continuing
-                for (auto& t : helpers) {
-                    if (t.joinable()) {
-                        t.join();
-                    }
-                }
                 if (stopSearch) {
                     // if time ran out mid-depth, the move in bestMoveToPlay is incomplete.
                     // break loop and rely on move from previously completed depth
@@ -225,6 +228,14 @@ int main() {
                 bestMoveOverall = bestMoveToPlay;
             }
 
+            stopSearch = true; // manually tell helpers to stop searching
+
+            // Wait for all helper threads to finish this depth before continuing
+            for (auto& t : helpers) {
+                if (t.joinable()) {
+                    t.join();
+                }
+            }
             if (bestMoveOverall == 0) {
                 // add safety catch
                 std::cout << "bestmove 0000" << std::endl;
@@ -249,17 +260,26 @@ int main() {
             }
         }  else if (command == "setoption") {
             std::string skip;
-            std::string optionToken, valToken, newTTSize;
+            std::string optionToken, valToken, optionValue;
             iss >> skip; // skip "name"
             iss >> optionToken >> valToken; // reads "Hash" and "value"
-            if (optionToken == "Hash" && valToken == "value") {
-                iss >> newTTSize;
-                try {
-                    int targetMB = std::stoi(newTTSize);
-                    initTT(targetMB);// resize transposition table
-                } catch (const std::exception& e) {
-                    // safety catch incase std::stoi fails
-                    std::cout << "Error resizing hash" << std::endl;
+
+            if (valToken == "value") {
+                iss >> optionValue;
+                if (optionToken == "Hash") {
+                    try {
+                        int targetMB = std::stoi(optionValue);
+                        initTT(targetMB); // resize transposition table
+                    } catch (const std::exception& e) {
+                        std::cout << "Error resizing hash" << std::endl;
+                    }
+                } else if (optionToken == "Threads") {
+                    try {
+                        numThreads = std::stoi(optionValue);
+                        if (numThreads < 1) numThreads = 1; // safety catch
+                    } catch (const std::exception& e) {
+                        std::cout << "Error setting threads" << std::endl;
+                    }
                 }
             }
         } else if (command == "ucinewgame") {
@@ -269,17 +289,6 @@ int main() {
             std::memset(killerMoves, 0, sizeof(killerMoves));
             // clear history table
             std::memset(historyTable, 0, sizeof(historyTable));
-        } else if (command.find("setoption name Threads value") != std::string::npos) {
-            // Parse thread count
-            std::istringstream iss(command);
-            std::string token;
-            while (iss >> token) {
-                if (token == "value") {
-                    iss >> numThreads;
-                    if (numThreads < 1) numThreads = 1; // safety catch
-                    break;
-                }
-            }
         }
     }
     return 0;
