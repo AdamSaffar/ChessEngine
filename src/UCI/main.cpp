@@ -2,6 +2,9 @@
 // Created by saffa on 6/28/2026.
 //
 #include <iostream>
+#include <condition_variable>
+#include <algorithm>
+#include <mutex>
 #include <cstring>
 #include <chrono>
 #include <thread>
@@ -17,16 +20,30 @@
 #include "../Engine/include/evaluation.h"
 
 #define MAX_PLY 64
-
+// std::atomic allow multiple threads to access shared data
 extern std::atomic<unsigned long long> nodesSearched;
+// thread local means that every thread gets its own independent copy of the var
 extern thread_local int killerMoves[MAX_PLY][2];
 extern thread_local int historyTable[2][64][64];
+extern thread_local unsigned int threadRNG_state;
 
-extern bool stopSearch;
+extern std::atomic<bool> stopSearch;
 extern long long searchTimeLimit; // time allowed in milliseconds
 extern std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
-
 int numThreads = 1; // default to single-thread
+
+// --- THREAD POOL GLOBALS ---
+std::vector<std::thread> threadPool;
+std::mutex poolMutex;
+// condition_variable is used to block one or more threads until another thread modifies a shared variable
+std::condition_variable wakeCondition;
+std::condition_variable sleepCondition;
+
+bool engineShutdown = false;
+bool searchActive = false;
+int activeHelpers = 0;
+Board globalSearchBoard;
+int currentTargetDepth = MAX_PLY;
 
 // Helper func to translate square index to chess notation(12 -> "e2")
 std::string indexToChessNotation(int sq) {
@@ -70,6 +87,56 @@ void parseMove(std::string input, int& start, int& target, char& promotedPiece) 
     //return true;
 }
 
+void persistentHelperLoop(int threadID) {
+    // Seed specific threads RNG
+    threadRNG_state += threadID * 0x9E3779B9;
+    while (true) {
+        // ensures thread-safe access
+        std::unique_lock<std::mutex> lock(poolMutex);
+        // Sleep without using CPU until main thread calls helper thread
+        wakeCondition.wait(lock, [] { return searchActive || engineShutdown;});
+
+        if (engineShutdown) break;
+
+        Board localBoard = globalSearchBoard;
+        int targetDepth = currentTargetDepth;
+        lock.unlock(); // Let other threads wake up
+
+        // Search
+        for (int d = 1; d <= targetDepth; d++) {
+            searchHelper(localBoard, d);
+            if (stopSearch) break;
+        }
+
+        // put threads to sleep
+        lock.lock();
+        activeHelpers--;
+        // if thisi the last helper to finish, notify main thread
+        if (activeHelpers == 0) sleepCondition.notify_one();
+
+        // keep thread waiting until main thread officially ends turn
+        wakeCondition.wait(lock, [] { return !searchActive || engineShutdown; });
+    }
+}
+
+void resizeThreadPool(int newSize) {
+    if (newSize == threadPool.size() + 1) return; // +1 accounts for main thread
+
+    // Shutdown existing pool
+    if (!threadPool.empty()) {
+        engineShutdown = true;
+        wakeCondition.notify_all();
+        for (auto& t : threadPool) t.join();
+        threadPool.clear();
+        engineShutdown = false;
+    }
+
+    // create new thread pool
+    for (int i = 1; i < newSize; i++) {
+        threadPool.emplace_back(persistentHelperLoop, i);
+    }
+}
+/*
 void helperThreadLoop(Board board, int targetDepth) {
     // helper runs its own iterative deepening
     for (int d = 1; d <= targetDepth; d++) {
@@ -78,6 +145,7 @@ void helperThreadLoop(Board board, int targetDepth) {
         if (stopSearch) break;
     }
 }
+*/
 int main() {
     setbuf(stdout, NULL);
     // Initialize Engine
@@ -87,6 +155,8 @@ int main() {
     // 512 MB ~= 32,000,000 unique board states
     initTT(512); // increase default TT size to 512 MB to account for multithreading
     initPawnMasks(); // init pawn structure masks
+
+    resizeThreadPool(numThreads); // initialize pool upon boot
 
     Board board;
     std::string line;
@@ -98,6 +168,10 @@ int main() {
         iss >> command; // first word of the string
 
         if (command == "quit") {
+            // kill thread before exiting
+            engineShutdown = true;
+            wakeCondition.notify_all();
+            for (auto& t : threadPool) t.join();
             break;
         } else if (command == "uci"){
             printEngineInfo();
@@ -206,16 +280,20 @@ int main() {
             nodesSearched = 0; // reset node count
             searchStartTime = std::chrono::steady_clock::now();
 
-            // container to hold threads
-            std::vector<std::thread> helpers;
-            // pass board by value so each thread gets its own physical copy
-            for (int i = 1; i < numThreads; i++) {
-                helpers.emplace_back(helperThreadLoop, board, targetDepth);
+            // Wake up helper threads
+            {
+                std::lock_guard<std::mutex> lock(poolMutex);
+                globalSearchBoard = board; // assign current board state to global board
+                currentTargetDepth = targetDepth;
+                searchActive = true;
+
+                // pre-load helpers
+                activeHelpers = threadPool.size();
             }
+            wakeCondition.notify_all();
 
-            // find best move via iterative deepening
+            // main thread iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
-
 
                 auto startTime = std::chrono::steady_clock::now();
                 searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
@@ -230,12 +308,15 @@ int main() {
 
             stopSearch = true; // manually tell helpers to stop searching
 
-            // Wait for all helper threads to finish this depth before continuing
-            for (auto& t : helpers) {
-                if (t.joinable()) {
-                    t.join();
-                }
-            }
+            // Wait for all helper threads to sleep
+            std::unique_lock<std::mutex> lock(poolMutex);
+            sleepCondition.wait(lock, [] { return activeHelpers == 0; });
+            searchActive = false;
+
+            // release helpers so they can loop back to the top
+            wakeCondition.notify_all();
+            lock.unlock();
+
             if (bestMoveOverall == 0) {
                 // add safety catch
                 std::cout << "bestmove 0000" << std::endl;
@@ -275,8 +356,11 @@ int main() {
                     }
                 } else if (optionToken == "Threads") {
                     try {
-                        numThreads = std::stoi(optionValue);
-                        if (numThreads < 1) numThreads = 1; // safety catch
+                        int newThreads = std::stoi(optionValue);
+                        if (newThreads < 1) newThreads = 1; // safety catch
+                        numThreads = newThreads;
+
+                        resizeThreadPool(numThreads);
                     } catch (const std::exception& e) {
                         std::cout << "Error setting threads" << std::endl;
                     }

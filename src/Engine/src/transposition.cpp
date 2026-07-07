@@ -63,11 +63,14 @@ void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
 
     // Apply the save 
     if (shouldReplace) {
+        // prevent negative depth
+        int storeDepth = std::max(0, depth);
+
         // pack the data into a single 64 bit integer
         U64 data = ((U64)(uint32_t)score << 32) |
             ((U64)(uint16_t)bestMove << 16) |
             ((U64)(uint8_t)flag << 8) |
-            ((U64)(uint8_t)depth);
+            ((U64)(uint8_t)storeDepth);
 
         // create checksum
         U64 checksum = zobristKey ^ data;

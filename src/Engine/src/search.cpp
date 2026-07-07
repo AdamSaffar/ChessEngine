@@ -25,10 +25,21 @@ const int CAPTURE_BASE_SCORE = 1000000;
 const int KILLER_1_SCORE = 90000;
 const int KILLER_2_SCORE = 80000;
 
-bool stopSearch = false;
+std::atomic<bool> stopSearch = false;
 long long searchTimeLimit = -1; // time allowed in milliseconds
 std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
 
+
+// each thread gets its on RNG
+thread_local unsigned int threadRNG_state = 1804289383;
+
+// Fast PRNG (Xorshift32 algorithm)
+inline unsigned int fastRand() {
+    threadRNG_state ^= threadRNG_state << 13;
+    threadRNG_state ^= threadRNG_state >> 17;
+    threadRNG_state ^= threadRNG_state << 5;
+    return threadRNG_state;
+}
 bool isRepetition(const Board& board) {
     // repetition requries a min of 4 plies
     // stop search at the halfMoveClock limit
@@ -95,9 +106,13 @@ int scoreMove(int move, Board& board, int ttMove, int ply) {
             return KILLER_2_SCORE;
         } else if (historyTable[color][start][target] != 0){
             // cap the history score just below the killer 2 score to protect hierarchy
-            return std::min(historyTable[color][start][target], KILLER_2_SCORE - 1);
+            int score = std::min(historyTable[color][start][target], KILLER_2_SCORE - 1);
+
+            // artifical jitter: add up to 15 points to break ties differentely across threads
+            return score + (fastRand() % 16);
         } else {
-            return 0; // Non-capture non-queen-promos non-killer non-history moves get sorted to back
+            // add artifical jitter to randomize un-scored quite moves across threads
+            return fastRand() % 16; // Non-capture non-queen-promos non-killer non-history moves get sorted to back
         }
     }
 
@@ -261,6 +276,9 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
 
     // if transposition table gave a valid score, skip the entire branch
     if (ttScore != UNKNOWN_SCORE) {
+        if (ttScore > MATE_VALUE - MAX_PLY) ttScore -= ply;
+        else if (ttScore < -MATE_VALUE + MAX_PLY) ttScore += ply;
+
         return ttScore;
     }
     // Check King Status
@@ -444,9 +462,14 @@ int negamax(Board& board, int depth, int alpha, int beta, int ply) {
     if (maxScore > originalAlpha) {
         hashFlag = HASH_EXACT; // found a move that improves position
     }
+
+    int storeScore = maxScore;
+    if (storeScore > MATE_VALUE - MAX_PLY) storeScore += ply;
+    else if (storeScore < -MATE_VALUE + MAX_PLY) storeScore -= ply;
+
     // Save to memory
     if (bestMoveThisNode != 0) {
-        storeTT(board.getHashKey(), depth, hashFlag, maxScore, bestMoveThisNode);
+        storeTT(board.getHashKey(), depth, hashFlag, storeScore, bestMoveThisNode);
     }
     return maxScore;
 }
@@ -470,7 +493,7 @@ void searchHelper(Board board, int depth) {
     sortMoves(moveList, moveScores);
 
     int legalMoves = 0;
-
+    int bestMoveThisNode = 0; // track best move
     for (int i = 0; i < moveList.count; i++) {
         int move = moveList.moves[i];
         if (!makeMove(move, board)) continue;
@@ -491,9 +514,14 @@ void searchHelper(Board board, int depth) {
         if (stopSearch) break;
         if (score > maxScore) {
             maxScore = score;
+            bestMoveThisNode = move; // save move
         }
 
         alpha = std::max(alpha, maxScore);
+    }
+    // save final eval so main thread can use it
+    if (!stopSearch && bestMoveThisNode != 0) {
+        storeTT(board.getHashKey(), depth, HASH_EXACT, maxScore, bestMoveThisNode);
     }
 }
 int bestMoveToPlay = 0;

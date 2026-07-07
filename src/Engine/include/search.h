@@ -5,6 +5,7 @@
 #ifndef CHESSENGINE_SEARCH_H
 #define CHESSENGINE_SEARCH_H
 #include "board.h"
+#include <chrono>
 // Search Constants
 const int INF = 50000; // safe boundary for infinity
 
@@ -12,6 +13,7 @@ const int INF = 50000; // safe boundary for infinity
 const int MATE_VALUE = 50000;
 
 extern int bestMoveToPlay; // GUI will read this var when search finishes
+extern std::atomic<bool> stopSearch;
 
 int negamax(Board& board, int depth, int alpha, int beta, int ply);
 void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime);
