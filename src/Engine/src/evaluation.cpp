@@ -3,7 +3,7 @@
 //
 #include "include/board.h"
 #include "include/evaluation.h"
-
+#include <algorithm>
 // Constant penalty/bonus for Pawn Structure
 const int DOUBLED_PAWN_MG = -10;
 const int DOUBLED_PAWN_EG = -20;
@@ -27,6 +27,8 @@ int evaluate(const Board& board) {
 
     // Pawn structure evaluation
     evaluatePawns(board, midGameScore, endGameScore);
+    // King evaluation
+    evaluateKings(board, midGameScore, endGameScore);
 
     // loop through all 12 piece types
     for (int pieceType = 0; pieceType < 12; pieceType++) {
@@ -78,7 +80,55 @@ int evaluate(const Board& board) {
     int turn = board.getSideToMove();
     return (turn == COLOR::WHITE) ? finalEvalScore : -finalEvalScore;
 }
+void evaluateKings(const Board& board, int& mgScore, int& egScore) {
+    // find kings
+    int whiteKingSq = __builtin_ctzll(board.getPieceBitBoard(5));
+    int blackKingSq = __builtin_ctzll(board.getPieceBitBoard(11));
 
+    int whiteKingFile = whiteKingSq % 8;
+    int blackKingFile = blackKingSq % 8;
+
+    int castlingRights = board.getCastlingRights();
+
+    U64 whitePawns = board.getPieceBitBoard(0);
+    U64 blackPawns = board.getPieceBitBoard(6);
+
+    // --- WHITE KING SAFETY ---
+    // If the White King is on the D, E, or F file
+    if (whiteKingFile >= 3 && whiteKingFile <= 5) {
+        // White has entirely lost the right to castle.
+        if ((castlingRights & 3) == 0) {
+            mgScore -= 40; // give penalty for losing castling rights
+        }
+    } else {
+        // king is tucked away on Files A-C or G-H
+        // check the file the king is on plus adjacent files
+        for (int f = std::max(0, whiteKingFile - 1); f <= std::min(7, whiteKingFile + 1); f++) {
+            U64 rank2Square = 1ULL << (8 + f); // Rank 2
+            U64 rank3Square = 1ULL << (16 + f); // Rank 3
+
+            if (whitePawns & rank2Square) mgScore += 15; // give bonus if there is a pawn wall on second rank
+            if (whitePawns & rank3Square) mgScore += 5; // give smaller bonus if pawns are on third rank(weaker wall)
+            else mgScore -= 15; // missing pawn wall shield
+        }
+    }
+
+    // --- BLACK KING SAFETY ---
+    if (blackKingFile >= 3 && blackKingFile <= 5) {
+        if ((castlingRights & 12) == 0) {
+            mgScore += 40; // positive score is bad for black
+        }
+    } else {
+        for (int f = std::max(0, blackKingFile - 1); f <= std::min(7, blackKingFile + 1); f++) {
+            U64 rank7Square = 1ULL << (48 + f); // rank 7
+            U64 rank6Square = 1ULL << (40 + f); // rank 6\
+
+            if (blackPawns & rank7Square) mgScore -= 15;
+            else if (blackPawns & rank6Square) mgScore -= 5;
+            else mgScore += 15;
+        }
+    }
+}
 void evaluatePawns(const Board& board, int& mgScore, int& egScore) {
     U64 whitePawns = board.getPieceBitBoard(0); // White Pawns index
     U64 blackPawns = board.getPieceBitBoard(6); // Black Pawns index

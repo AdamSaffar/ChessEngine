@@ -158,7 +158,7 @@ int main() {
     initZobrist(); // init random hash keys
 
     // 512 MB ~= 32,000,000 unique board states
-    initTT(512); // increase default TT size to 512 MB to account for multithreading
+    initTT(1024); // increase default TT size to 1024 MB to account for multithreading
     initPawnMasks(); // init pawn structure masks
 
     resizeThreadPool(numThreads); // initialize pool upon boot
