@@ -21,6 +21,17 @@ const int BISHOP_MOBILITY = 5;
 const int ROOK_MOBILITY = 3;
 const int QUEEN_MOBILITY = 2; // keep lower to prevent premature queen movement
 
+// Center Manhattan-Distance Array: Scores how close a specific square is to the central four squares
+const int centerManhattanDistance[64] = {
+    6, 5, 4, 3, 3, 4, 5, 6,
+    5, 4, 3, 2, 2, 3, 4, 5,
+    4, 3, 2, 1, 1, 2, 3, 4,
+    3, 2, 1, 0, 0, 1, 2, 3,
+    3, 2, 1, 0, 0, 1, 2, 3,
+    4, 3, 2, 1, 1, 2, 3, 4,
+    5, 4, 3, 2, 2, 3, 4, 5,
+    6, 5, 4, 3, 3, 4, 5, 6
+};
 // pre-calculated pawn masks
 U64 fileMasks[8];          // [file]
 U64 isolatedMasks[8];      // [file]
@@ -31,13 +42,6 @@ int evaluate(const Board& board) {
     int endGameScore{};
     int totalPhaseWeight{};
     int finalEvalScore{};
-
-    // Pawn structure evaluation
-    evaluatePawns(board, midGameScore, endGameScore);
-    // King evaluation
-    evaluateKings(board, midGameScore, endGameScore);
-    // Piece mobility evaluation
-    evaluateMobility(board, midGameScore, endGameScore);
 
     // loop through all 12 piece types
     for (int pieceType = 0; pieceType < 12; pieceType++) {
@@ -75,6 +79,15 @@ int evaluate(const Board& board) {
             pieceBitBoard &= (pieceBitBoard - 1);
         }
     }
+    // Pawn structure evaluation
+    evaluatePawns(board, midGameScore, endGameScore);
+    // King evaluation
+    evaluateKings(board, midGameScore, endGameScore);
+    // Piece mobility evaluation
+    evaluateMobility(board, midGameScore, endGameScore);
+    // Mop-up eval
+    evaluateMopUp(board, endGameScore, midGameScore);
+
     // !IMPORTANT: Cap the phase weight at 24 to prevent negative endgame multipliers from pawn promotions
     if (totalPhaseWeight > 24) totalPhaseWeight = 24;
 
@@ -88,6 +101,35 @@ int evaluate(const Board& board) {
      */
     int turn = board.getSideToMove();
     return (turn == COLOR::WHITE) ? finalEvalScore : -finalEvalScore;
+}
+
+// If one side is clearly winning, forces engine to push enemy king to edge of board to guarantee checkmate
+void evaluateMopUp(const Board& board, int& egScore, int mgScore) {
+    // Only apply mop-up logic if one side is completely winning
+    if (std::abs(mgScore) < 400) return;
+
+    int whiteKingSq = __builtin_ctzll(board.getPieceBitBoard(5));
+    int blackKingSq = __builtin_ctzll(board.getPieceBitBoard(11));
+
+    int whiteKingRank = whiteKingSq / 8;
+    int whiteKingFile = whiteKingSq % 8;
+    int blackKingRank = blackKingSq / 8;
+    int blackKingFile = blackKingSq % 8;
+
+    // Calculate Manhattan distance between the two kings
+    int kingDist = std::abs(whiteKingRank - blackKingRank) + std::abs(whiteKingFile - blackKingFile);
+
+    // White is winning
+    if (mgScore > 400) {
+        // give bonus for pushing blank king to the edge
+        egScore += centerManhattanDistance[blackKingSq] * 10;
+        // give bonus for bringing white king closer to black king
+        egScore += (14 - kingDist) * 4; // if kings are on opposite corner(14-14 = 0 bonus, if kings are next to each other 14 - 2 = +12 bonus)
+    } else if (mgScore < -400) { // Black is winning
+        egScore -= centerManhattanDistance[whiteKingSq] * 10;
+        egScore -= (14 - kingDist) * 4;
+    }
+
 }
 void evaluateMobility(const Board& board, int& mgScore, int& egScore) {
     U64 allPieces = board.getOccupancies(COLOR::BOTH);

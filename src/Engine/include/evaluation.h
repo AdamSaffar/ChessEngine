@@ -185,5 +185,6 @@ int evaluate(const Board& board);
 void evaluatePawns(const Board& board, int& mgScore, int& egScore);
 void evaluateKings(const Board& board, int& mgScore, int& egScore);
 void evaluateMobility(const Board& board, int& mgScore, int& egScore);
+void evaluateMopUp(const Board& board, int& egScore, int mgScore);
 void initPawnMasks();
 #endif //CHESSENGINE_EVALUATION_H
