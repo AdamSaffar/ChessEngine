@@ -4,6 +4,7 @@
 #include "include/board.h"
 #include "include/evaluation.h"
 #include <algorithm>
+
 // Constant penalty/bonus for Pawn Structure
 const int DOUBLED_PAWN_MG = -10;
 const int DOUBLED_PAWN_EG = -20;
@@ -13,6 +14,12 @@ const int ISOLATED_PAWN_EG = -30;
 // Scaled bonuses based on how far the pawn has advanced
 const int PASSED_PAWN_MG[8] = {0, 10, 10, 15, 25, 50, 90, 0};
 const int PASSED_PAWN_EG[8] = {0, 10, 20, 40, 70, 120, 200, 0};
+
+// Mobility Weights (Bonus points per legal square)
+const int KNIGHT_MOBILITY = 4;
+const int BISHOP_MOBILITY = 5;
+const int ROOK_MOBILITY = 3;
+const int QUEEN_MOBILITY = 2; // keep lower to prevent premature queen movement
 
 // pre-calculated pawn masks
 U64 fileMasks[8];          // [file]
@@ -29,6 +36,8 @@ int evaluate(const Board& board) {
     evaluatePawns(board, midGameScore, endGameScore);
     // King evaluation
     evaluateKings(board, midGameScore, endGameScore);
+    // Piece mobility evaluation
+    evaluateMobility(board, midGameScore, endGameScore);
 
     // loop through all 12 piece types
     for (int pieceType = 0; pieceType < 12; pieceType++) {
@@ -79,6 +88,98 @@ int evaluate(const Board& board) {
      */
     int turn = board.getSideToMove();
     return (turn == COLOR::WHITE) ? finalEvalScore : -finalEvalScore;
+}
+void evaluateMobility(const Board& board, int& mgScore, int& egScore) {
+    U64 allPieces = board.getOccupancies(COLOR::BOTH);
+    U64 whitePieces = board.getOccupancies(COLOR::WHITE);
+    U64 blackPieces = board.getOccupancies(COLOR::BLACK);
+
+    // --- WHITE MOBILITY ---
+
+    // Knights
+    U64 knights = board.getPieceBitBoard(1);
+    while (knights) {
+        int sq = __builtin_ctzll(knights);
+        U64 attacks = getKnightAttacks(sq) & ~whitePieces; // exclude friendly pieces
+        // returns number of squares knight attacks
+        int count = std::popcount(attacks);
+        mgScore += count * KNIGHT_MOBILITY;
+        egScore += count * KNIGHT_MOBILITY;
+        knights &= knights - 1;
+    }
+    // Bishops
+    U64 bishops = board.getPieceBitBoard(2);
+    while (bishops) {
+        int sq = __builtin_ctzll(bishops);
+        U64 attacks = getBishopAttacks(sq, allPieces) & ~whitePieces;
+        int count = std::popcount(attacks);
+        mgScore += count * BISHOP_MOBILITY;
+        egScore += count * BISHOP_MOBILITY;
+        bishops &= bishops - 1;
+    }
+    // Rooks
+    U64 rooks = board.getPieceBitBoard(3);
+    while (rooks) {
+        int sq = __builtin_ctzll(rooks);
+        U64 attacks = getRookAttacks(sq, allPieces) & ~whitePieces;
+        int count = std::popcount(attacks);
+        mgScore += count * ROOK_MOBILITY;
+        egScore += count * ROOK_MOBILITY;
+        rooks &= rooks - 1;
+    }
+    // Queens
+    U64 queens = board.getPieceBitBoard(4);
+    while (queens) {
+        int sq = __builtin_ctzll(queens);
+        U64 attacks = getQueenAttacks(sq, allPieces) & ~whitePieces;
+        int count = std::popcount(attacks);
+        mgScore += count * QUEEN_MOBILITY;
+        egScore += count * QUEEN_MOBILITY;
+        queens &= queens - 1;
+    }
+
+    // --- BLACK MOBILITY ---
+
+    // Knights
+    knights = board.getPieceBitBoard(7);
+    while (knights) {
+        int sq = __builtin_ctzll(knights);
+        U64 attacks = getKnightAttacks(sq) & ~blackPieces;
+        int count = std::popcount(attacks);
+        mgScore -= count * KNIGHT_MOBILITY;
+        egScore -= count * KNIGHT_MOBILITY;
+        knights &= knights - 1;
+    }
+    // Bishops
+    bishops = board.getPieceBitBoard(8);
+    while (bishops) {
+        int sq = __builtin_ctzll(bishops);
+        U64 attacks = getBishopAttacks(sq, allPieces) & ~blackPieces;
+        int count = std::popcount(attacks);
+        mgScore -= count * BISHOP_MOBILITY;
+        egScore -= count * BISHOP_MOBILITY;
+        bishops &= bishops - 1;
+    }
+    // Rooks
+    rooks = board.getPieceBitBoard(9);
+    while (rooks) {
+        int sq = __builtin_ctzll(rooks);
+        U64 attacks = getRookAttacks(sq, allPieces) & ~blackPieces;
+        int count = std::popcount(attacks);
+        mgScore -= count * ROOK_MOBILITY;
+        egScore -= count * ROOK_MOBILITY;
+        rooks &= rooks - 1;
+    }
+    // Queens
+    queens = board.getPieceBitBoard(10);
+    while (queens) {
+        int sq = __builtin_ctzll(queens);
+        U64 attacks = getQueenAttacks(sq, allPieces) & ~blackPieces;
+        int count = std::popcount(attacks);
+        mgScore -= count * QUEEN_MOBILITY;
+        egScore -= count * QUEEN_MOBILITY;
+        queens &= queens - 1;
+    }
 }
 void evaluateKings(const Board& board, int& mgScore, int& egScore) {
     // find kings

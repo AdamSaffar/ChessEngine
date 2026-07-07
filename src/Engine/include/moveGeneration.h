@@ -30,6 +30,9 @@ void generateMoves(MoveList& list, const Board &board);
 U64 setOccupancyHelper(int index, int bitsInMask, U64 mask);
 U64 simulateRookAttacks(int square, U64 blockers);
 U64 simulateBishopAttacks(int square, U64 blockers);
+U64 getKnightAttacks(int square);
 U64 getBishopAttacks(int square, U64 liveBoard);
 U64 getRookAttacks(int square, U64 liveBoard);
+U64 getQueenAttacks(int square, U64 liveBoard);
+
 #endif //CHESSENGINE_MOVEGENERATION_H

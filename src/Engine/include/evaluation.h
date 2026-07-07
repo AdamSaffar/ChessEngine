@@ -5,6 +5,7 @@
 #ifndef CHESSENGINE_EVALUATION_H
 #define CHESSENGINE_EVALUATION_H
 #include "board.h"
+#include <bit>
 // Standard Material Values/Weights
 // King does not have a set value(it can't ever be captured)
 const int pieceValues[12] = {
@@ -183,5 +184,6 @@ const int phaseWeights[12] = {
 int evaluate(const Board& board);
 void evaluatePawns(const Board& board, int& mgScore, int& egScore);
 void evaluateKings(const Board& board, int& mgScore, int& egScore);
+void evaluateMobility(const Board& board, int& mgScore, int& egScore);
 void initPawnMasks();
 #endif //CHESSENGINE_EVALUATION_H
