@@ -4,6 +4,7 @@
 
 #ifndef CHESSENGINE_TRANSPOSITION_H
 #define CHESSENGINE_TRANSPOSITION_H
+#include <atomic>
 #include "include/zobrist.h"
 
 enum TT_FLAG {
@@ -18,8 +19,9 @@ struct TTEntry { // Size of TTEntry: 16 bytes
     /* Data represents depth, flag, score, and bestmove as one 64 bit integer like so:
      * SCORE (32 bits) | MOVE (16 bits) | FLAG (8 bits) | DEPTH (8 bits)
      */
-    U64 data;
-    U64 checksum; // Stores zobristKey ^ data
+    // Change U64 vars to atomic so compiler knows multiple threads are using these
+    std::atomic<U64> data;
+    std::atomic<U64> checksum; // Stores zobristKey ^ data
 
     /*
     U64 zobristKey;

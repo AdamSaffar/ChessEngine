@@ -29,8 +29,8 @@ void initTT(int megabytes) {
 void clearTT() {
     // loop through each cell and reset data
     for (int i = 0; i < ttEntryCount; i++) {
-        transpositionTable[i].checksum = 0ULL;
-        transpositionTable[i].data = 0ULL;
+        transpositionTable[i].checksum.store(0ULL, std::memory_order_relaxed);
+        transpositionTable[i].data.store(0ULL, std::memory_order_relaxed);
     }
 }
 // Write to Transposition table
@@ -38,8 +38,8 @@ void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
     // find the correct array index
     int index = zobristKey % ttEntryCount;
 
-    U64 existingData = transpositionTable[index].data;
-    U64 existingChecksum = transpositionTable[index].checksum;
+    U64 existingData = transpositionTable[index].data.load(std::memory_order_relaxed);
+    U64 existingChecksum = transpositionTable[index].checksum.load(std::memory_order_relaxed);
 
     // Depth represents lowest 8 bits
     int existingDepth = (int)(existingData & 0xFF);
@@ -73,17 +73,19 @@ void storeTT(U64 zobristKey, int depth, int flag, int score, int bestMove) {
         U64 checksum = zobristKey ^ data;
 
         // Write to memory
-        transpositionTable[index].data = data;
-        transpositionTable[index].checksum = checksum;
+        transpositionTable[index].data.store(data, std::memory_order_relaxed);
+        // std::memory_order_release forces CPU to finish writing data to mem before it writes checksum
+        transpositionTable[index].checksum.store(checksum, std::memory_order_release);
     }
-
 }
 
 int probeTT(U64 zobristKey, int depth, int alpha, int beta, int& ttMove) {
     int index = zobristKey % ttEntryCount;
     // Read entry from memory
-    U64 checksum = transpositionTable[index].checksum;
-    U64 data = transpositionTable[index].data;
+
+    // std::memory_order_acquire forces CPU to finish reading checksum before reading data
+    U64 checksum = transpositionTable[index].checksum.load(std::memory_order_acquire);
+    U64 data = transpositionTable[index].data.load(std::memory_order_relaxed);
 
 
     // Check if key matches the current board
