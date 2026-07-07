@@ -26,6 +26,7 @@ extern std::atomic<unsigned long long> nodesSearched;
 extern thread_local int killerMoves[MAX_PLY][2];
 extern thread_local int historyTable[2][64][64];
 extern thread_local unsigned int threadRNG_state;
+extern thread_local bool isHelperThread;
 
 extern std::atomic<bool> stopSearch;
 extern long long searchTimeLimit; // time allowed in milliseconds
@@ -88,6 +89,7 @@ void parseMove(std::string input, int& start, int& target, char& promotedPiece) 
 }
 
 void persistentHelperLoop(int threadID) {
+    isHelperThread = true;
     // Seed specific threads RNG
     threadRNG_state += threadID * 0x9E3779B9;
     while (true) {
@@ -102,8 +104,11 @@ void persistentHelperLoop(int threadID) {
         int targetDepth = currentTargetDepth;
         lock.unlock(); // Let other threads wake up
 
+        // Offset depths so threads dont search the same horizon
+        int startDepth = 1 + (threadID % 4);
+
         // Search
-        for (int d = 1; d <= targetDepth; d++) {
+        for (int d = startDepth; d <= targetDepth; d++) {
             searchHelper(localBoard, d);
             if (stopSearch) break;
         }

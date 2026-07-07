@@ -19,6 +19,7 @@ std::atomic<unsigned long long> nodesSearched = 0; // cumulative total node coun
 thread_local int localNodeCounter = 0; // private counter for each thread
 thread_local int killerMoves[MAX_PLY][2]= {0}; // [ply][slot 0 or 1]
 thread_local int historyTable[2][64][64] = {0}; // [Color][Start Square][Target Square]
+thread_local bool isHelperThread = false; // main thread defaults to false
 
 const int TT_MOVE_SCORE = 2000000;
 const int CAPTURE_BASE_SCORE = 1000000;
@@ -109,10 +110,11 @@ int scoreMove(int move, Board& board, int ttMove, int ply) {
             int score = std::min(historyTable[color][start][target], KILLER_2_SCORE - 1);
 
             // artifical jitter: add up to 15 points to break ties differentely across threads
-            return score + (fastRand() % 16);
+            // only jitter if this is a helper thread
+            return isHelperThread ? score + (fastRand() % 16) : score;
         } else {
             // add artifical jitter to randomize un-scored quite moves across threads
-            return fastRand() % 16; // Non-capture non-queen-promos non-killer non-history moves get sorted to back
+            return isHelperThread ? (fastRand() % 16) : 0; // Non-capture non-queen-promos non-killer non-history moves get sorted to back
         }
     }
 
