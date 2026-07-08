@@ -21,6 +21,8 @@ add_library(Engine
         src/zobrist.cpp
         include/transposition.h
         src/transposition.cpp
+        include/polyglot.h
+        src/polyglot.cpp
 )
 
 # This allows main.cpp to #include "board.h"
