@@ -104,6 +104,9 @@ void persistentHelperLoop(int threadID) {
         int targetDepth = currentTargetDepth;
         lock.unlock(); // Let other threads wake up
 
+        // clear killer moves upon every turn
+        std::memset(killerMoves, 0, sizeof(killerMoves));
+        
         // Offset depths so threads dont search the same horizon
         int startDepth = 1 + (threadID % 4);
 

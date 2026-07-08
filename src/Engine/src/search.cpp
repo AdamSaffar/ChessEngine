@@ -2,6 +2,7 @@
 // Created by saffa on 6/25/2026.
 //
 #include <iostream>
+#include <cstring>
 #include <thread>
 #include <chrono>
 #include <atomic>
@@ -529,6 +530,9 @@ void searchHelper(Board board, int depth) {
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
 void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
+    // Wipe killer moves array upon every turn
+    std::memset(killerMoves, 0, sizeof(killerMoves));
+
     int maxScore = -INF;
     int bestRootMove = 0;
 

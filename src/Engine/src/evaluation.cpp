@@ -4,6 +4,7 @@
 #include "include/board.h"
 #include "include/evaluation.h"
 #include <algorithm>
+#include <cmath>
 
 // Constant penalty/bonus for Pawn Structure
 const int DOUBLED_PAWN_MG = -10;
@@ -129,7 +130,6 @@ void evaluateMopUp(const Board& board, int& egScore, int mgScore) {
         egScore -= centerManhattanDistance[whiteKingSq] * 10;
         egScore -= (14 - kingDist) * 4;
     }
-
 }
 void evaluateMobility(const Board& board, int& mgScore, int& egScore) {
     U64 allPieces = board.getOccupancies(COLOR::BOTH);
