@@ -2,11 +2,18 @@
 // Created by saffa on 7/7/2026.
 //
 #include "include/polyglot.h"
+#include "include/polyglot_keys.h"
 #include "include/moveGeneration.h"
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
 
+// maps engine piece index to Polyglot piece index (0-11)
+// My Engine: White Pawn, White Knight, White Bishop, White Queen, Black Pawn, etc
+// Polyglot: Black pawn, White pawn, Black Knight, White Knight, Black Bishop, White Bishop, Black Rook
+// White Rook, Black Queen, White Queen, Black King, White King
+const int polyglotPieceMap[12] = {1, 3, 5, 7, 9, 11, 0, 2, 4, 6, 8, 10};
 // Global book file stream
 std::ifstream polyglotBook;
 bool hasBook = false;
@@ -103,4 +110,148 @@ std::vector<PolyglotEntry> findAllEntries(uint64_t polyglotKey) {
         }
     }
     return entries;
+}
+
+// build polyglot hash key
+uint64_t computePolyglotHash(const Board& board) {
+    uint64_t hash = 0ULL;
+
+    // hash individual pieces
+    for (int pieceType = 0; pieceType < 12; pieceType++) {
+        U64 pieceBitBoard = board.getPieceBitBoard(pieceType);
+
+        while (pieceBitBoard != 0ULL) {
+            int square = __builtin_ctzll(pieceBitBoard);
+            int file = square % 8;
+            int rank = 7 - (square / 8);
+            int polyglotSq = rank * 8 + file;
+
+            // translate piece
+            int polyglotPiece = polyglotPieceMap[pieceType];
+
+            // XOR the piece/square
+            hash ^= PolyglotRandom[64 * polyglotPiece + polyglotSq];
+
+            pieceBitBoard &= (pieceBitBoard - 1);
+        }
+    }
+
+    // Hash Castling Rights
+    int castling = board.getCastlingRights();
+    // Engine castlingRights format: White King, White Queen, Black King, Black  Queen
+    if (castling & 1) hash ^= PolyglotRandom[768];
+    if (castling & 2) hash ^= PolyglotRandom[769];
+    if (castling & 4) hash ^= PolyglotRandom[770];
+    if (castling & 8) hash ^= PolyglotRandom[771];
+
+    // Hash EnPassant
+    int epSquare = board.getEnpassantSquare();
+    if (epSquare != -1) {
+        int epFile = epSquare % 8;
+        hash ^= PolyglotRandom[772 + epFile];
+    }
+
+    // Hash Side to Move
+    if (board.getSideToMove() == COLOR::WHITE) {
+        hash ^= PolyglotRandom[780];
+    }
+
+    return hash;
+}
+
+// Translate polyglot data and picks a weighted random move
+int getBookMove(Board& board) {
+    uint64_t polyKey = computePolyglotHash(board);
+    std::vector<PolyglotEntry> entries = findAllEntries(polyKey);
+
+    // Current Board Position was not found in book
+    if (entries.empty()) return 0;
+
+    // Calculate total weight
+    int totalWeight = 0;
+    for (const auto& entry : entries) {
+        totalWeight += entry.weight;
+    }
+
+    uint16_t chosenPolyglotMove = 0;
+
+    // Weighted random selection
+    if (totalWeight > 0) {
+        int randomVal = rand() % totalWeight;
+        int runningSum = 0;
+        for (const auto& entry : entries) {
+            runningSum += entry.weight;
+            if (runningSum < randomVal) {
+                chosenPolyglotMove = entry.move;
+                break;
+            }
+        }
+    } else {
+        // fallback if all book moves have a weight of 0
+        int randomIndex = rand() % entries.size();
+        chosenPolyglotMove = entries[randomIndex].move;
+    }
+
+
+    // DECODING POLYGLOT MOVE
+
+    // Polyglot format: bits 0-2(promo), 3-5 (to file), 6-8 (to rank), 9-11 (from file), 12-14 (from rank)
+    int polyTo = chosenPolyglotMove & 0x3F;
+    int polyFrom = (chosenPolyglotMove >> 6) & 0x3F;
+    int polyPromo = (chosenPolyglotMove >> 12) & 0x07;
+
+    // Convert polygot squares (A1 = 0) to engine squares(A8 = 0)
+    int toFile = polyTo % 8;
+    int toRank = polyTo / 8;
+    int engineTo = (7 - toRank) * 8 + toFile;
+
+    int fromFile = polyFrom % 8;
+    int fromRank = polyFrom / 8;
+    int engineFrom = (7 - fromRank) * 8 + fromFile;
+
+
+    // decode polyglot castling
+    if (polyPromo == 0) {
+        // White Kingside (e1 to h1 -> e1 to g1)
+        if (engineFrom == 60 && engineTo == 63) engineTo = 62;
+        // White Queenside (e1 to a1 -> e1 to c1)
+        else if (engineFrom == 60 && engineTo == 56) engineTo = 58;
+        // Black Kingside (e8 to h8 -> e8 to g8)
+        else if (engineFrom == 4 && engineTo == 7) engineTo = 6;
+        // Black Queenside (e8 to a8 -> e8 to c8)
+        else if (engineFrom == 4 && engineTo == 0) engineTo = 2;
+    }
+
+    // generate moves to grab the engines flag
+    MoveList moveList;
+    generateMoves(moveList, board);
+
+    for (int i = 0; i < moveList.count; i++) {
+        uint16_t engineMove = moveList.moves[i];
+
+        if (getStart(engineMove) == engineFrom && getTarget(engineMove) == engineTo) {
+
+            int flag = getFlag(engineMove);
+            bool isPromo = (flag >= PR_KNIGHT && flag <= PC_QUEEN);
+
+            // Handle Promotions
+            if (polyPromo != 0) {
+                if (!isPromo) continue;
+                bool wantsKnight = (polyPromo == 1 && (flag == PR_KNIGHT || flag == PC_KNIGHT));
+                bool wantsBishop = (polyPromo == 2 && (flag == PR_BISHOP || flag == PC_BISHOP));
+                bool wantsRook   = (polyPromo == 3 && (flag == PR_ROOK   || flag == PC_ROOK));
+                bool wantsQueen  = (polyPromo == 4 && (flag == PR_QUEEN  || flag == PC_QUEEN));
+
+                if (wantsKnight || wantsBishop || wantsRook || wantsQueen) return engineMove;
+            }
+            // Handle Normal Moves
+            else if (!isPromo) {
+                return engineMove;
+            }
+        }
+    }
+
+    return 0; // Failsafe
+
+
 }
