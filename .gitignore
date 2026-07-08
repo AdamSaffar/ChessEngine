@@ -6,3 +6,9 @@ cmake-build-debug/
 cmake-build-release/
 build/
 out/
+
+
+# Ignore Chess bin
+data/*.bin
+data/*.rtbw
+data/*.rtbz

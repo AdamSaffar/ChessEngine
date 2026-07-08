@@ -47,6 +47,8 @@ std::vector<PolyglotEntry> findAllEntries(uint64_t polyglotKey) {
 
     // safety check
     if (!hasBook || !polyglotBook.is_open()) return entries;
+    // clear any error flags from previous search
+    polyglotBook.clear();
 
     // find total number of entries in the file
     polyglotBook.seekg(0,std::ios::end);
@@ -122,15 +124,10 @@ uint64_t computePolyglotHash(const Board& board) {
 
         while (pieceBitBoard != 0ULL) {
             int square = __builtin_ctzll(pieceBitBoard);
-            int file = square % 8;
-            int rank = 7 - (square / 8);
-            int polyglotSq = rank * 8 + file;
-
-            // translate piece
             int polyglotPiece = polyglotPieceMap[pieceType];
 
             // XOR the piece/square
-            hash ^= PolyglotRandom[64 * polyglotPiece + polyglotSq];
+            hash ^= PolyglotRandom[64 * polyglotPiece + square];
 
             pieceBitBoard &= (pieceBitBoard - 1);
         }
@@ -146,7 +143,7 @@ uint64_t computePolyglotHash(const Board& board) {
 
     // Hash EnPassant
     int epSquare = board.getEnpassantSquare();
-    if (epSquare != -1) {
+    if (epSquare != -1 && epSquare != 0) {
         int epFile = epSquare % 8;
         hash ^= PolyglotRandom[772 + epFile];
     }
@@ -162,6 +159,9 @@ uint64_t computePolyglotHash(const Board& board) {
 // Translate polyglot data and picks a weighted random move
 int getBookMove(Board& board) {
     uint64_t polyKey = computePolyglotHash(board);
+    // debugg line
+    std::cout << "info string Polyglot Hash generated: " << std::hex << polyKey << std::dec << std::endl;
+
     std::vector<PolyglotEntry> entries = findAllEntries(polyKey);
 
     // Current Board Position was not found in book
@@ -181,7 +181,7 @@ int getBookMove(Board& board) {
         int runningSum = 0;
         for (const auto& entry : entries) {
             runningSum += entry.weight;
-            if (runningSum < randomVal) {
+            if (runningSum > randomVal) {
                 chosenPolyglotMove = entry.move;
                 break;
             }
@@ -196,30 +196,21 @@ int getBookMove(Board& board) {
     // DECODING POLYGLOT MOVE
 
     // Polyglot format: bits 0-2(promo), 3-5 (to file), 6-8 (to rank), 9-11 (from file), 12-14 (from rank)
-    int polyTo = chosenPolyglotMove & 0x3F;
-    int polyFrom = (chosenPolyglotMove >> 6) & 0x3F;
+    // FIX: shift bits before applying mask
+    int engineTo = chosenPolyglotMove & 0x3F;
+    int engineFrom = (chosenPolyglotMove >> 6) & 0x3F;
     int polyPromo = (chosenPolyglotMove >> 12) & 0x07;
-
-    // Convert polygot squares (A1 = 0) to engine squares(A8 = 0)
-    int toFile = polyTo % 8;
-    int toRank = polyTo / 8;
-    int engineTo = (7 - toRank) * 8 + toFile;
-
-    int fromFile = polyFrom % 8;
-    int fromRank = polyFrom / 8;
-    int engineFrom = (7 - fromRank) * 8 + fromFile;
-
 
     // decode polyglot castling
     if (polyPromo == 0) {
         // White Kingside (e1 to h1 -> e1 to g1)
-        if (engineFrom == 60 && engineTo == 63) engineTo = 62;
+        if (engineFrom == 4 && engineTo == 7) engineTo = 6;
         // White Queenside (e1 to a1 -> e1 to c1)
-        else if (engineFrom == 60 && engineTo == 56) engineTo = 58;
-        // Black Kingside (e8 to h8 -> e8 to g8)
-        else if (engineFrom == 4 && engineTo == 7) engineTo = 6;
-        // Black Queenside (e8 to a8 -> e8 to c8)
         else if (engineFrom == 4 && engineTo == 0) engineTo = 2;
+        // Black Kingside (e8 to h8 -> e8 to g8)
+        else if (engineFrom == 60 && engineTo == 63) engineTo = 62;
+        // Black Queenside (e8 to a8 -> e8 to c8)
+        else if (engineFrom == 60 && engineTo == 56) engineTo = 58;
     }
 
     // generate moves to grab the engines flag
@@ -250,8 +241,5 @@ int getBookMove(Board& board) {
             }
         }
     }
-
     return 0; // Failsafe
-
-
 }

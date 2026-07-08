@@ -18,6 +18,7 @@
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
 #include "../Engine/include/evaluation.h"
+#include "../Engine/include/polyglot.h"
 
 #define MAX_PLY 64
 // std::atomic allow multiple threads to access shared data
@@ -155,6 +156,8 @@ void helperThreadLoop(Board board, int targetDepth) {
 }
 */
 int main() {
+    std::srand(std::time(0)); // Seed random for Polyglot
+    initPolyglot("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\Cerebellum3Merge.bin"); // initialize polyglot(opening book file)
     setbuf(stdout, NULL);
     // Initialize Engine
     initAllMoveGen();
@@ -293,8 +296,15 @@ int main() {
             nodesSearched = 0; // reset node count
             searchStartTime = std::chrono::steady_clock::now();
 
-            // Wake up helper threads
-            {
+            // --- POLYGLOT INTERCEPT ---
+            int bookMove = getBookMove(board);
+            if (bookMove != 0) {
+                // we found a book move. Save it, and skip search
+                bestMoveOverall = bookMove;
+                targetDepth = 0;
+                std::cout << "info string Playing Polyglot book move" << std::endl;
+            } else { // Normal search
+                // Wake up helper threads
                 std::lock_guard<std::mutex> lock(poolMutex);
                 globalSearchBoard = board; // assign current board state to global board
                 currentTargetDepth = targetDepth;
@@ -302,8 +312,8 @@ int main() {
 
                 // pre-load helpers
                 activeHelpers = threadPool.size();
+                wakeCondition.notify_all();
             }
-            wakeCondition.notify_all();
 
             int previousScore = 0; // Track score between depths
 
