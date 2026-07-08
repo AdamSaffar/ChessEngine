@@ -49,7 +49,7 @@ std::vector<PolyglotEntry> findAllEntries(uint64_t polyglotKey) {
     long long high = numEntries - 1;
     long long firstMatch = -1;
 
-    // standard binary search
+    // standard binary search since book is sorted
     while (low <= high) {
         long long mid = low + (high - low) / 2;
         PolyglotEntry entry;
@@ -101,6 +101,6 @@ std::vector<PolyglotEntry> findAllEntries(uint64_t polyglotKey) {
         } else {
             break; // end of block reached
         }
-        return entries;
     }
+    return entries;
 }

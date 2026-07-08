@@ -23,6 +23,7 @@ add_library(Engine
         src/transposition.cpp
         include/polyglot.h
         src/polyglot.cpp
+        include/polyglot_keys.h
 )
 
 # This allows main.cpp to #include "board.h"
