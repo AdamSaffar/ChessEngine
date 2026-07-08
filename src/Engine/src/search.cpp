@@ -529,7 +529,7 @@ void searchHelper(Board board, int depth) {
 }
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
-void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
+int searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
     // Wipe killer moves array upon every turn
     std::memset(killerMoves, 0, sizeof(killerMoves));
 
@@ -601,7 +601,7 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
     }
 
     // dont print garbage data
-    if (stopSearch) return;
+    if (stopSearch) return 0;
 
     // Calculate elapsed time
     auto end = std::chrono::steady_clock::now();
@@ -620,4 +620,6 @@ void searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::st
               << " nodes " << nodesSearched
               << " nps " << nps
               << std::endl;
+
+    return maxScore;
 }

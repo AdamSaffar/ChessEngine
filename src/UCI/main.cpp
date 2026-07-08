@@ -106,7 +106,7 @@ void persistentHelperLoop(int threadID) {
 
         // clear killer moves upon every turn
         std::memset(killerMoves, 0, sizeof(killerMoves));
-        
+
         // Offset depths so threads dont search the same horizon
         int startDepth = 1 + (threadID % 4);
 
@@ -265,24 +265,29 @@ int main() {
             }
 
             // calculate time we can spend
-            long long timeLimit = -1;
+            long long optimalTime = -1;
+            long long maxTime = -1;
+
             if (moveTime != -1) {
-                timeLimit = moveTime; // GUI request exact move time
+                optimalTime = moveTime;
+                maxTime = moveTime; // GUI request exact move time
             } else if (wtime != -1 && btime != -1) {
                 int color = board.getSideToMove();
                 long long myTime = (color == COLOR::WHITE) ? wtime : btime;
                 long long myInc = (color == COLOR::WHITE) ? winc : binc;
 
-                // spend 1 / 30th of remaining time + half increment
-                timeLimit = (myTime / 30) + (myInc / 2);
+                // Soft target: Spend 1/40th of time remaining + 3/4th of increment
+                optimalTime = (myTime / 40) + (myInc * 3 / 4);
 
-                // safety buffer
-                if (timeLimit > myTime - 50) {
-                    timeLimit = std::max(10LL, myTime - 50);
-                }
+                // Hard limit: never spend more than 20% of remaining time on 1 move
+                maxTime = myTime / 5;
+
+                // safety buffer to prevent flagging
+                if (optimalTime > myTime - 50) optimalTime = std::max(10LL, myTime - 50);
+                if (maxTime > myTime - 50) maxTime = std::max(10LL, myTime - 50);
             }
             // reset state for each new search
-            searchTimeLimit = timeLimit;
+            searchTimeLimit = maxTime;
             stopSearch = false;
             int bestMoveOverall = 0;
             nodesSearched = 0; // reset node count
@@ -300,18 +305,50 @@ int main() {
             }
             wakeCondition.notify_all();
 
+            int previousScore = 0; // Track score between depths
+
             // main thread iterative deepening
             for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
 
                 auto startTime = std::chrono::steady_clock::now();
-                searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
+
+                // get the score returned by search at this depth
+                int currentScore = searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
 
                 if (stopSearch) {
                     // if time ran out mid-depth, the move in bestMoveToPlay is incomplete.
                     // break loop and rely on move from previously completed depth
                     break;
                 }
+
                 bestMoveOverall = bestMoveToPlay;
+
+                // If engine found forced mate, stop thinking and play a move immediately to save time
+                if (currentScore > MATE_VALUE - MAX_PLY) {
+                    break;
+                }
+                // if score dropped by more than 50 points from previous depth,
+                // the position is highly volatile and critical. Extend soft time
+                if (currentDepth > 1 && currentScore < previousScore - 50) {
+                    if (optimalTime != -1) {
+                        optimalTime += (optimalTime / 2);
+                        // safeguard so engine doesn't exceed hard limit
+                        if (optimalTime > maxTime) optimalTime = maxTime;
+                    }
+                }
+                previousScore = currentScore; // update prev score
+
+                // Soft-time check
+                if (optimalTime != -1) {
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStartTime).count();
+
+                    // if we finished a depth but exceeded our soft-time limit, STOP
+                    // starting a new depth will likely faily halfway through and waste clock time
+                    if (elapsed >= optimalTime) {
+                        break;
+                    }
+                }
             }
 
             stopSearch = true; // manually tell helpers to stop searching
