@@ -6,6 +6,7 @@ add_library(Engine
         src/moveGeneration.cpp
         src/evaluation.cpp
         src/perft.cpp
+        src/tbprobe.cpp
 
         # Header files
         include/board.h
@@ -24,6 +25,7 @@ add_library(Engine
         include/polyglot.h
         src/polyglot.cpp
         include/polyglot_keys.h
+        include/tbconfig.h
 )
 
 # This allows main.cpp to #include "board.h"

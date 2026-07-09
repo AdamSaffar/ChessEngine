@@ -1,0 +1,34 @@
+Score of MyEngine vs Vice: 209 - 55 - 36  [0.757] 300
+...      MyEngine playing White: 99 - 31 - 20  [0.727] 150
+...      MyEngine playing Black: 110 - 24 - 16  [0.787] 150
+...      White vs Black: 123 - 141 - 36  [0.470] 300
+Elo difference: 197.1 +/- 42.2, LOS: 100.0 %, DrawRatio: 12.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Player: MyEngine
+   "Draw by 3-fold repetition": 19
+   "Draw by adjudication": 3
+   "Draw by fifty moves rule": 6
+   "Draw by insufficient mating material": 7
+   "Draw by stalemate": 1
+   "Loss: Black wins by adjudication": 31
+   "Loss: White mates": 1
+   "Loss: White wins by adjudication": 23
+   "Win: Black mates": 8
+   "Win: Black wins by adjudication": 102
+   "Win: White mates": 8
+   "Win: White wins by adjudication": 91
+Player: Vice
+   "Draw by 3-fold repetition": 19
+   "Draw by adjudication": 3
+   "Draw by fifty moves rule": 6
+   "Draw by insufficient mating material": 7
+   "Draw by stalemate": 1
+   "Loss: Black mates": 8
+   "Loss: Black wins by adjudication": 102
+   "Loss: White mates": 8
+   "Loss: White wins by adjudication": 91
+   "Win: Black wins by adjudication": 31
+   "Win: White mates": 1
+   "Win: White wins by adjudication": 23
+Finished match

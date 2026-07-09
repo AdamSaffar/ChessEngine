@@ -19,6 +19,7 @@
 #include "../Engine/include/transposition.h"
 #include "../Engine/include/evaluation.h"
 #include "../Engine/include/polyglot.h"
+#include "../Engine/include/tbprobe.h"
 
 #define MAX_PLY 64
 // std::atomic allow multiple threads to access shared data
@@ -158,6 +159,15 @@ void helperThreadLoop(Board board, int targetDepth) {
 int main() {
     std::srand(std::time(0)); // Seed random for Polyglot
     initPolyglot("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\Cerebellum3Merge.bin"); // initialize polyglot(opening book file)
+
+    // Initialize Syzygy Tablebases
+    bool tbActive = tb_init("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\syzygy");
+    if (tbActive) {
+        std::cout << "info string Syzygy tablebases found: " << TB_LARGEST << " men" << std::endl;
+    } else {
+        std::cout << "info string Failed to load Syzygy tablebases." << std::endl;
+    }
+
     setbuf(stdout, NULL);
     // Initialize Engine
     initAllMoveGen();
