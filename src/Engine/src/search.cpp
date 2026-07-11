@@ -13,7 +13,7 @@
 #include <include/move.h>
 #include <include/moveGeneration.h>
 #include <include/transposition.h>
-
+#include <include/tbprobe.h>
 #define MAX_PLY 64
 
 std::atomic<unsigned long long> nodesSearched = 0; // cumulative total node count
@@ -31,9 +31,34 @@ std::atomic<bool> stopSearch = false;
 long long searchTimeLimit = -1; // time allowed in milliseconds
 std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
 
-
 // each thread gets its on RNG
 thread_local unsigned int threadRNG_state = 1804289383;
+// Helper func to translate square index to chess notation(12 -> "e2")
+static std::string indexToChessNotation(int sq) {
+    std::string result = "";
+    result += (char)('a' + (sq % 8)); // File
+    result += (char)('1' + (sq / 8)); // Rank
+    return result;
+}
+// translates 16-bit move to regular chess notation
+static std::string moveToString(int move) {
+    if (move == 0) return "0000"; // Failsafe for null/empty moves
+
+    int start = getStart(move);
+    int target = getTarget(move);
+    int flag = getFlag(move);
+
+    // Use your existing helper to translate the start and target squares
+    std::string moveStr = indexToChessNotation(start) + indexToChessNotation(target);
+
+    // UCI protocol requires lowercase characters for promotions
+    if (flag == PR_KNIGHT || flag == PC_KNIGHT) moveStr += "n";
+    else if (flag == PR_BISHOP || flag == PC_BISHOP) moveStr += "b";
+    else if (flag == PR_ROOK || flag == PC_ROOK) moveStr += "r";
+    else if (flag == PR_QUEEN || flag == PC_QUEEN) moveStr += "q";
+
+    return moveStr;
+}
 
 // Fast PRNG (Xorshift32 algorithm)
 inline unsigned int fastRand() {
@@ -80,6 +105,72 @@ const int MVV_LVA[6][6] = {
     {505, 504, 503, 502, 501, 500}, // Victim: Queen
     {0, 0, 0, 0, 0, 0} // Victim: King
 };
+
+// Probes Syzygy tablebases for a Win/Draw/Loss core
+int probeSyzygy(const Board& board, int ply) {
+    // check if tablebases are loaded and postition has 5 or fewer pieces
+    if (TB_LARGEST == 0) {
+        return 100000;
+    }
+    // extract bitboards
+    U64 whitePawns = board.getPieceBitBoard(PIECE_TYPE::Pawn);
+    U64 whiteBishops = board.getPieceBitBoard(PIECE_TYPE::Bishop);
+    U64 whiteKnights = board.getPieceBitBoard(PIECE_TYPE::Knight);
+    U64 whiteRooks = board.getPieceBitBoard(PIECE_TYPE::Rook);
+    U64 whiteQueens = board.getPieceBitBoard(PIECE_TYPE::Queen);
+    U64 whiteKings   = board.getPieceBitBoard(PIECE_TYPE::King);
+
+    U64 blackPawns = board.getPieceBitBoard(PIECE_TYPE::Pawn + 6);
+    U64 blackBishops = board.getPieceBitBoard(PIECE_TYPE::Bishop + 6);
+    U64 blackKnights = board.getPieceBitBoard(PIECE_TYPE::Knight + 6);
+    U64 blackRooks = board.getPieceBitBoard(PIECE_TYPE::Rook + 6);
+    U64 blackQueens = board.getPieceBitBoard(PIECE_TYPE::Queen + 6);
+    U64 blackKings = board.getPieceBitBoard(PIECE_TYPE::King + 6);
+
+    U64 whitePieces = whitePawns | whiteBishops | whiteKnights | whiteRooks | whiteQueens | whiteKings;
+    U64 blackPieces = blackPawns | blackKnights | blackBishops | blackRooks | blackQueens | blackKings;
+
+    int pCount = std::popcount((unsigned long long)(whitePieces | blackPieces));
+
+    // check if piece count is <= 5. If not exit
+    if (pCount > TB_LARGEST) return 100000; // exit
+
+    U64 kings = whiteKings | blackKings;
+    U64 queens = whiteQueens | blackQueens;
+    U64 rooks = whiteRooks | blackRooks;
+    U64 bishops = whiteBishops | blackBishops;
+    U64 knights = whiteKnights | blackKnights;
+    U64 pawns = whitePawns | blackPawns;
+
+    // gather board state
+    unsigned epSquare = (board.getEnpassantSquare() == -1) ? 0 : board.getEnpassantSquare();
+    unsigned rule50 = 0;
+    bool turn = (board.getSideToMove() == COLOR::WHITE);
+
+    // probe Win/Draw/Loss table
+    unsigned wdl = tb_probe_wdl(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, rule50, 0, epSquare, turn);
+
+    // debug if probing failed
+    if (wdl == TB_RESULT_FAILED) {
+        // use static so it only prints once per search
+        static bool printed = false;
+        if (!printed) {
+            std::cout << "info string --- SYZYGY X-RAY DIAGNOSTIC ---" << std::endl;
+            std::cout << "info string White Kings seen: " << std::popcount((unsigned long long)whiteKings) << std::endl;
+            std::cout << "info string White Rooks seen: " << std::popcount((unsigned long long)whiteRooks) << std::endl;
+            std::cout << "info string Black Kings seen: " << std::popcount((unsigned long long)blackKings) << std::endl;
+            std::cout << "info string Total Pieces seen: " << pCount << std::endl;
+            printed = true;
+        }
+        return 100000;
+    }
+
+    // Offset score by ply so the engine prefers faster mate
+    if (wdl == 4 || wdl == 3) return 20000 - ply;  // Win
+    if (wdl == 0 || wdl == 1) return -20000 + ply; // Loss
+    return 0; // Draw
+}
+
 /* 1. Transposition Table first for an exact move match(Highest Score)
  * 2. MVV-LVA lookup table(Second Highest Scoring)
  * 3. killerMoves array(Third highest scoring)
@@ -252,11 +343,23 @@ void unmakeNullMove(Board& board) {
  * Negamax assumes every node wants to maximize its own score.
  */
 int negamax(Board& board, int depth, int alpha, int beta, int ply) {
+
     // HANDLE DRAW BY REPETITION
     // Check for repetition or 50-move rule
     if (board.getHistoryPly() > 0 && (isRepetition(board) || board.getHalfMoveClock() >= 100)) {
         return 0;
     }
+
+    // Probe Syzygy tablebase
+    if (ply > 0) {
+        int tbScore = probeSyzygy(board, ply);
+
+        // if we got a tablebase hit immediately prune branch
+        if (tbScore != 100000) {
+            return tbScore; // Immediately prune branch
+        }
+    }
+
     // prevent array out of bounds
     if (ply >= MAX_PLY) {
         return  quiescence(board, alpha, beta);
@@ -530,6 +633,91 @@ void searchHelper(Board board, int depth) {
 int bestMoveToPlay = 0;
 /** catch the physical move associated with the absolute highest score from the search */
 int searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::steady_clock> startTime) {
+    U64 whitePawns   = board.getPieceBitBoard(PIECE_TYPE::Pawn);
+    U64 whiteKnights = board.getPieceBitBoard(PIECE_TYPE::Knight);
+    U64 whiteBishops = board.getPieceBitBoard(PIECE_TYPE::Bishop);
+    U64 whiteRooks   = board.getPieceBitBoard(PIECE_TYPE::Rook);
+    U64 whiteQueens  = board.getPieceBitBoard(PIECE_TYPE::Queen);
+    U64 whiteKings   = board.getPieceBitBoard(PIECE_TYPE::King);
+
+    U64 blackPawns   = board.getPieceBitBoard(PIECE_TYPE::Pawn + 6);
+    U64 blackKnights = board.getPieceBitBoard(PIECE_TYPE::Knight + 6);
+    U64 blackBishops = board.getPieceBitBoard(PIECE_TYPE::Bishop + 6);
+    U64 blackRooks   = board.getPieceBitBoard(PIECE_TYPE::Rook + 6);
+    U64 blackQueens  = board.getPieceBitBoard(PIECE_TYPE::Queen + 6);
+    U64 blackKings   = board.getPieceBitBoard(PIECE_TYPE::King + 6);
+
+    U64 whitePieces = whitePawns | whiteKnights | whiteBishops | whiteRooks | whiteQueens | whiteKings;
+    U64 blackPieces = blackPawns | blackKnights | blackBishops | blackRooks | blackQueens | blackKings;
+
+    // Count number of pieces that remain on the board
+    int pCount = std::popcount((unsigned long long)(whitePieces | blackPieces));
+
+    // --- SYZYGY DTZ ROOT PROBE (The Cure for the Shuffle) ---
+    if (TB_LARGEST > 0 && pCount <= TB_LARGEST && board.getCastlingRights() == 0) {
+
+        U64 kings = whiteKings | blackKings;
+        U64 queens = whiteQueens | blackQueens;
+        U64 rooks = whiteRooks | blackRooks;
+        U64 bishops = whiteBishops | blackBishops;
+        U64 knights = whiteKnights | blackKnights;
+        U64 pawns = whitePawns | blackPawns;
+
+        unsigned epSquare = (board.getEnpassantSquare() == -1) ? 0 : board.getEnpassantSquare();
+        unsigned rule50 = board.getHalfMoveClock();
+        bool turn = (board.getSideToMove() == COLOR::WHITE);
+
+        // Probe syzygy tablebase for the forced move
+        unsigned res = tb_probe_root(whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns, rule50, 0, epSquare, turn, NULL);
+
+        // returns special flags if the game is already over
+        if (res != TB_RESULT_FAILED && res != TB_RESULT_CHECKMATE && res != TB_RESULT_STALEMATE) {
+
+            // extract move
+            int tbFrom = TB_GET_FROM(res);
+            int tbTo = TB_GET_TO(res);
+            int tbPromotes = TB_GET_PROMOTES(res);
+
+            MoveList rootMoves;
+            generateMoves(rootMoves, board);
+
+            for (int i = 0; i < rootMoves.count; i++) {
+                int move = rootMoves.moves[i];
+
+                // Check if fathoms res move matches the one in our internal move list
+                if (getStart(move) == tbFrom && getTarget(move) == tbTo) {
+
+                    // If Fathom demands a promotion, secure the Queen
+                    if (tbPromotes != TB_PROMOTES_NONE) {
+                        int flag = getFlag(move);
+                        if (flag != PR_QUEEN && flag != PC_QUEEN) continue;
+                    }
+
+                    bestMoveToPlay = move;
+
+                    auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - startTime).count();
+
+                    // get win/draw/loss
+                    unsigned wdl = TB_GET_WDL(res);
+                    int tbScore = 0;
+                    if (wdl == TB_WIN) tbScore = 19999;
+                    else if (wdl == TB_LOSS) tbScore = -19999;
+                    else if (wdl == TB_CURSED_WIN) tbScore = 1;   // Cursed win means the tablebase sees a forced checkmate that takes more than 50 moves. Which could result in a draw by 50-move rule
+                    else if (wdl == TB_BLESSED_LOSS) tbScore = -1; // Inverse of cursed win. It can stall long enough to trigger the 50-move draw rule
+                    else tbScore = 0; // Tablebase returned draw
+
+                    std::cout << "info depth " << depth
+                              << " score cp " << tbScore
+                              << " time " << duration
+                              << " nodes 0 nps 0 pv " << moveToString(move)
+                              << std::endl;
+
+                    return tbScore; // Instantly bypass the entire search tree!
+                }
+            }
+        }
+    }
     // Wipe killer moves array upon every turn
     std::memset(killerMoves, 0, sizeof(killerMoves));
 
@@ -603,6 +791,25 @@ int searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::ste
     // dont print garbage data
     if (stopSearch) return 0;
 
+    // extract principal variation string
+    std::string pvString = "";
+    Board tempBoard = board;
+    int pvMoves = 0;
+
+    // walk down TT line until we hit a dead end or depth limit
+    while (pvMoves < depth) {
+        int tempAlpha = -INF, tempBeta = INF, tempTtMove = 0;
+
+        // extract ttMove
+        probeTT(tempBoard.getHashKey(), 0, tempAlpha, tempBeta, tempTtMove);
+        if (tempTtMove == 0) break;
+
+        // pvString prints the move history like: e2e4 e7e5 g1f3
+        pvString += moveToString(tempTtMove) + " ";
+
+        if (!makeMove(tempTtMove, tempBoard)) break; // Safety catch
+        pvMoves++;
+    }
     // Calculate elapsed time
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - startTime).count();
@@ -619,6 +826,7 @@ int searchRoot(Board& board, int depth, std::chrono::time_point<std::chrono::ste
               << " time " << duration
               << " nodes " << nodesSearched
               << " nps " << nps
+              << " pv " << pvString
               << std::endl;
 
     return maxScore;

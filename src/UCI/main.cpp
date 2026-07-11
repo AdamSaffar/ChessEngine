@@ -163,7 +163,7 @@ int main() {
     // Initialize Syzygy Tablebases
     bool tbActive = tb_init("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\syzygy");
     if (tbActive) {
-        std::cout << "info string Syzygy tablebases found: " << TB_LARGEST << " men" << std::endl;
+        std::cout << "info string Syzygy tablebases found: " << TB_LARGEST << " men" << std::endl; // "men" means any physical item on the board
     } else {
         std::cout << "info string Failed to load Syzygy tablebases." << std::endl;
     }
@@ -344,7 +344,7 @@ int main() {
                 bestMoveOverall = bestMoveToPlay;
 
                 // If engine found forced mate, stop thinking and play a move immediately to save time
-                if (currentScore > MATE_VALUE - MAX_PLY) {
+                if (currentScore > MATE_VALUE - MAX_PLY || currentScore == 19999 || currentScore == -19999) { // or if tablebase forced mate
                     break;
                 }
                 // if score dropped by more than 50 points from previous depth,

@@ -235,6 +235,9 @@ public:
         halfMoveClock = std::stoi(halfMoveSection); // use std::stoi to convert string to int
         fullMoveNumber = std::stoi(fullMoveSection);
     }
+    inline int getPieceCount() const {
+          return std::popcount(occupancies[COLOR::BOTH]);
+    }
     friend void makeNullMove(Board& board);
     friend void unmakeNullMove(Board& board);
     friend int negamax(Board& board, int depth, int alpha, int beta, int ply);

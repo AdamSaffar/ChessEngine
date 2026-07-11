@@ -12,3 +12,4 @@ out/
 data/*.bin
 data/*.rtbw
 data/*.rtbz
+data/*.rtb*
