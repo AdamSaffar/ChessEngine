@@ -9,7 +9,6 @@ out/
 
 
 # Ignore Chess bin
-data/*.bin
-data/*.rtbw
-data/*.rtbz
-data/*.rtb*
+data/syzygy/*.rtbw
+data/syzygy/*.rtbz
+data/Cerebellum3Merge.bin
