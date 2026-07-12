@@ -6,6 +6,10 @@
 #include <thread>
 #include <cstring>
 #include <algorithm>
+#include <condition_variable>
+#include <mutex>
+#include <string>
+#include <vector>
 #include <SFML/Graphics.hpp>
 #include "../Engine/include/board.h"
 #include "../Engine/include/moveGeneration.h"
@@ -14,12 +18,96 @@
 #include "../Engine/include/zobrist.h"
 #include "../Engine/include/transposition.h"
 #include "../Engine/include/evaluation.h"
+#include "../Engine/include/polyglot.h"
+#include "../Engine/include/tbprobe.h"
 
 #define MAX_PLY 64
+// Updated Globals to match UCI
+extern std::atomic<unsigned long long> nodesSearched;
+extern thread_local int killerMoves[MAX_PLY][2];
+extern thread_local int historyTable[2][64][64];
+extern thread_local unsigned int threadRNG_state;
+extern thread_local bool isHelperThread;
 
-extern unsigned long long nodesSearched;
-extern int killerMoves[MAX_PLY][2];
-extern int historyTable[2][64][64];
+extern std::atomic<bool> stopSearch;
+extern long long searchTimeLimit;
+extern std::chrono::time_point<std::chrono::steady_clock> searchStartTime;
+int numThreads = 4; // defaulting GUI to 4 threads for Lazy SMP
+
+// Thread pool global vars
+std::vector<std::thread> threadPool;
+std::mutex poolMutex;
+std::condition_variable wakeCondition;
+std::condition_variable sleepCondition;
+
+bool engineShutdown = false;
+bool searchActive = false;
+int activeHelpers = 0;
+Board globalSearchBoard;
+int currentTargetDepth = MAX_PLY;
+
+// GUI asynchronous trackers
+std::atomic<bool> engineIsThinking = false;
+std::atomic<int> engineMoveToPlay = 0;
+
+// Copied helper functions from UCI\main.cpp
+void persistentHelperLoop(int threadID) {
+    isHelperThread = true;
+    // Seed specific threads RNG
+    threadRNG_state += threadID * 0x9E3779B9;
+    while (true) {
+        // ensures thread-safe access
+        std::unique_lock<std::mutex> lock(poolMutex);
+        // Sleep without using CPU until main thread calls helper thread
+        wakeCondition.wait(lock, [] { return searchActive || engineShutdown;});
+
+        if (engineShutdown) break;
+
+        Board localBoard = globalSearchBoard;
+        int targetDepth = currentTargetDepth;
+        lock.unlock(); // Let other threads wake up
+
+        // clear killer moves upon every turn
+        std::memset(killerMoves, 0, sizeof(killerMoves));
+
+        // Offset depths so threads dont search the same horizon
+        int startDepth = 1 + (threadID % 4);
+
+        // Search
+        for (int d = startDepth; d <= targetDepth; d++) {
+            searchHelper(localBoard, d);
+            if (stopSearch) break;
+        }
+
+        // put threads to sleep
+        lock.lock();
+        activeHelpers--;
+        // if thisi the last helper to finish, notify main thread
+        if (activeHelpers == 0) sleepCondition.notify_one();
+
+        // keep thread waiting until main thread officially ends turn
+        wakeCondition.wait(lock, [] { return !searchActive || engineShutdown; });
+    }
+}
+
+// Copied helper from UCI\main.cpp
+void resizeThreadPool(int newSize) {
+    if (newSize == threadPool.size() + 1) return; // +1 accounts for main thread
+
+    // Shutdown existing pool
+    if (!threadPool.empty()) {
+        engineShutdown = true;
+        wakeCondition.notify_all();
+        for (auto& t : threadPool) t.join();
+        threadPool.clear();
+        engineShutdown = false;
+    }
+
+    // create new thread pool
+    for (int i = 1; i < newSize; i++) {
+        threadPool.emplace_back(persistentHelperLoop, i);
+    }
+}
 
 void drawBoard(sf::RenderWindow& window, float squareSize) {
     // Chess.com theme colors
@@ -50,7 +138,6 @@ void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& boar
 
     // Calculate how much to shrink or grow the sprite to match the current board size
     float scaleFactor = squareSize / sourceSpriteSize;
-
 
     sf::Sprite pieceSprite(pieceTexture);
     pieceSprite.setScale(scaleFactor, scaleFactor);
@@ -106,12 +193,24 @@ void drawPieces(sf::RenderWindow& window, sf::Texture& pieceTexture, Board& boar
 
 }
 int main() {
+    std::srand(std::time(0)); // Seed random for Polyglot
+    initPolyglot("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\Cerebellum3Merge.bin");
+
+    bool tbActive = tb_init("C:\\Users\\saffa\\CLionProjects\\ChessEngine\\data\\syzygy");
+    if (tbActive) {
+        std::cout << "Syzygy tablebases found: " << TB_LARGEST << " men\n";
+    } else {
+        std::cout << "Failed to load Syzygy tablebases.\n";
+    }
+
     // Initialize Engine
     initAllMoveGen();
     initZobrist(); // init random hash keys
-    initTT(64); // init transposition table
+    initTT(1024); // upgraded to 1024 MB for lazy SMP
     initPawnMasks(); // init pawn structure masks
-    
+
+    resizeThreadPool(numThreads); // boot up lazy SMP threads
+
     Board board;
     board.parseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); // init starting chess position
     board.setHashKey(generateHashKey(board)); // generate zobrist key
@@ -149,6 +248,8 @@ int main() {
     int targetSquare = -1;
     int draggedPiece = -1; // remember what piece is being dragged
 
+    std::thread backgroundEngineThread;
+
     // clear killer moves array
     std::memset(killerMoves, 0, sizeof(killerMoves));
     // clear history table
@@ -159,44 +260,130 @@ int main() {
     while (window.isOpen()) {
         MoveList moveList;
         generateMoves(moveList, board);
-        // check if game is over
-        int legalMoves = 0;
-        for (int i = 0; i < moveList.count; i++) {
-            if (makeMove(moveList.moves[i], board)) {
-                legalMoves++;
-                unmakeMove(moveList.moves[i], board);
-            }
-        }
-        if (legalMoves == 0) {
-            int kingPiece = (board.getSideToMove() == COLOR::WHITE) ? PIECE_TYPE::King : PIECE_TYPE::King + 6;
-            int kingSquare = __builtin_ctzll(board.getPieceBitBoard(kingPiece));
 
-            // if legalMoves = 0 and the king is attacked -> CHECKMATE
-            if (board.isSquareAttacked(kingSquare, board.getSideToMove() ^ 1)) {
-                std::cout << "CHECKMATE! Game Over. \n";
-            // If legalMoves = 0 and the king is not attacked -> STALEMATE
-            } else {
-                std::cout << "STALEMATE! Game Over. \n";
+        // only check for game over if the engines isnt currently thinking
+        if (!engineIsThinking.load()) {
+            // check if game is over
+            int legalMoves = 0;
+            for (int i = 0; i < moveList.count; i++) {
+                if (makeMove(moveList.moves[i], board)) {
+                    legalMoves++;
+                    unmakeMove(moveList.moves[i], board);
+                }
             }
-            break;
+            if (legalMoves == 0) {
+                int kingPiece = (board.getSideToMove() == COLOR::WHITE) ? PIECE_TYPE::King : PIECE_TYPE::King + 6;
+                int kingSquare = __builtin_ctzll(board.getPieceBitBoard(kingPiece));
+
+                // if legalMoves = 0 and the king is attacked -> CHECKMATE
+                if (board.isSquareAttacked(kingSquare, board.getSideToMove() ^ 1)) {
+                    std::cout << "CHECKMATE! Game Over. \n";
+                    // If legalMoves = 0 and the king is not attacked -> STALEMATE
+                } else {
+                    std::cout << "STALEMATE! Game Over. \n";
+                }
+            }
         }
         // --- ENGINES TURN ---
-        if (board.getSideToMove() == COLOR::BLACK) {
+        if (board.getSideToMove() == COLOR::BLACK && !engineIsThinking.load() && engineMoveToPlay.load() == 0) {
+            engineIsThinking.store(true);
+            engineMoveToPlay.store(0);
 
-            nodesSearched = 0; // reset node count
-
-            // iterative deepening
-            for (int currentDepth = 1; currentDepth <= 8; currentDepth++) {
-                auto startTime = std::chrono::steady_clock::now();
-                searchRoot(board, currentDepth, startTime); // CALL SEARCH FUNCTION
+            if (backgroundEngineThread.joinable()) {
+                backgroundEngineThread.join();
             }
 
-            // If the computer attempts an illegal move -> exit
-            if (!makeMove(bestMoveToPlay, board)) {
-                std::cout << "Engine Failed: Attempted illegal move.\n";
-                break;
-            }
+            // make local board copy so search doesn't mess with GUI
+            Board searchBoard = board;
+
+            backgroundEngineThread = std::thread([searchBoard]() mutable {
+                nodesSearched = 0; // reset node count
+
+                // Hardcode GUI time bounds (1 sec soft, 3 sec hard) to prevent freezing
+                long long optimalTime = 1000;
+                long long maxTime = 3000;
+                searchTimeLimit = maxTime;
+
+                stopSearch = false;
+                int bestMoveOverall = 0;
+                searchStartTime = std::chrono::steady_clock::now();
+                int targetDepth = MAX_PLY;
+
+                // polyglot intercept
+                int bookMove = getBookMove(searchBoard);
+                if (bookMove != 0) {
+                    bestMoveOverall = bookMove;
+                    std::cout << "Played Polyglot book move\n";
+                } else {
+                    // Normal Lazy SMP search
+                    poolMutex.lock();
+                    globalSearchBoard = searchBoard;
+                    currentTargetDepth = targetDepth;
+                    searchActive = true;
+                    activeHelpers = threadPool.size();
+                    poolMutex.unlock();
+                    wakeCondition.notify_all();
+
+                    int previousScore = 0;
+
+                    // iterative deepening
+                    for (int currentDepth = 1; currentDepth <= targetDepth; currentDepth++) {
+                        auto startTime = std::chrono::steady_clock::now();
+
+                        int currentScore = searchRoot(searchBoard, currentDepth, startTime);
+                        if (stopSearch) break;
+                        bestMoveOverall = bestMoveToPlay;
+
+                        if (currentScore > MATE_VALUE - MAX_PLY || currentScore == 19999 || currentScore == -19999) {
+                            break;
+                        }
+
+                        if (currentDepth > 1 && currentScore < previousScore - 50) {
+                            optimalTime += (optimalTime / 2);
+                            if (optimalTime > maxTime) optimalTime = maxTime;
+                        }
+                        previousScore = currentScore;
+
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - searchStartTime).count();
+
+                        if (elapsed >= optimalTime) {
+                            break;
+                        }
+                    }
+                    stopSearch = true;
+                    std::unique_lock<std::mutex> sleepLock(poolMutex);
+                    sleepCondition.wait(sleepLock, [] { return activeHelpers == 0; });
+                    searchActive = false;
+                    wakeCondition.notify_all();
+                }
+                // Fail safe
+                // if the search completely failed or timed out before evaluating
+                if (bestMoveOverall == 0) {
+                    MoveList backupList;
+                    generateMoves(backupList, searchBoard);
+                    for (int i = 0; i < backupList.count; i++) {
+                        if (makeMove(backupList.moves[i], searchBoard)) {
+                            bestMoveOverall = backupList.moves[i];
+                            unmakeMove(backupList.moves[i], searchBoard);
+                            break;
+                        }
+                    }
+                }
+                // pass move back to main thread
+                engineMoveToPlay.store(bestMoveOverall);
+                engineIsThinking.store(false);
+            });
         }
+
+        // process engine move on main thread
+        if (engineMoveToPlay.load() != 0 && !engineIsThinking.load()) {
+            if (!makeMove(engineMoveToPlay.load(), board)) {
+                std::cout << "Engine Failed: Attempted illegal move.\n";
+            }
+            engineMoveToPlay.store(0);// reset for next turn
+        }
+
         // Check all the window events that were triggered since the last iteration of the loop
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -223,7 +410,8 @@ int main() {
                     break;
                 }
                 case sf::Event::MouseButtonPressed:
-                    if (event.mouseButton.button == sf::Mouse::Left) {
+                    // Only allow picking up pieces if it is the human's turn
+                    if (event.mouseButton.button == sf::Mouse::Left && !engineIsThinking && board.getSideToMove() == COLOR::WHITE) {
                         // grab coords from mouse click
                         sf::Vector2i pixelPos(event.mouseButton.x, event.mouseButton.y);
                         sf::Vector2f worldPos = window.mapPixelToCoords(pixelPos, boardView);
@@ -312,6 +500,14 @@ int main() {
 
         window.display();
     }
+    // shutdown threads
+    stopSearch = true;
+    engineShutdown = true;
+    wakeCondition.notify_all();
+    for (auto& t : threadPool) t.join();
 
+    if (backgroundEngineThread.joinable()) {
+        backgroundEngineThread.join();
+    }
     return 0;
 }
