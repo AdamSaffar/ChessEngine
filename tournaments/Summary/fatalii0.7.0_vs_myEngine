@@ -1,0 +1,36 @@
+Score of MyEngine vs fatalii: 64 - 381 - 55  [0.183] 500
+...      MyEngine playing White: 35 - 190 - 25  [0.190] 250
+...      MyEngine playing Black: 29 - 191 - 30  [0.176] 250
+...      White vs Black: 226 - 219 - 55  [0.507] 500
+Elo difference: -259.9 +/- 35.8, LOS: 0.0 %, DrawRatio: 11.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Player: MyEngine
+   "Draw by 3-fold repetition": 22
+   "Draw by adjudication": 10
+   "Draw by fifty moves rule": 15
+   "Draw by insufficient mating material": 5
+   "Draw by stalemate": 3
+   "Loss: Black mates": 37
+   "Loss: Black wins by adjudication": 153
+   "Loss: White mates": 53
+   "Loss: White wins by adjudication": 138
+   "Win: Black mates": 1
+   "Win: Black wins by adjudication": 28
+   "Win: White mates": 1
+   "Win: White wins by adjudication": 34
+Player: fatalii
+   "Draw by 3-fold repetition": 22
+   "Draw by adjudication": 10
+   "Draw by fifty moves rule": 15
+   "Draw by insufficient mating material": 5
+   "Draw by stalemate": 3
+   "Loss: Black mates": 1
+   "Loss: Black wins by adjudication": 28
+   "Loss: White mates": 1
+   "Loss: White wins by adjudication": 34
+   "Win: Black mates": 37
+   "Win: Black wins by adjudication": 153
+   "Win: White mates": 53
+   "Win: White wins by adjudication": 138
+Finished match

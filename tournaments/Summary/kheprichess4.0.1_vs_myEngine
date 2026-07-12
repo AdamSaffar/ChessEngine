@@ -1,0 +1,36 @@
+Score of MyEngine vs Kheprichess: 297 - 145 - 58  [0.652] 500
+...      MyEngine playing White: 157 - 65 - 28  [0.684] 250
+...      MyEngine playing Black: 140 - 80 - 30  [0.620] 250
+...      White vs Black: 237 - 205 - 58  [0.532] 500
+Elo difference: 109.1 +/- 29.9, LOS: 100.0 %, DrawRatio: 11.6 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Player: MyEngine
+   "Draw by 3-fold repetition": 27
+   "Draw by adjudication": 8
+   "Draw by fifty moves rule": 17
+   "Draw by insufficient mating material": 3
+   "Draw by stalemate": 3
+   "Loss: Black mates": 4
+   "Loss: Black wins by adjudication": 61
+   "Loss: White mates": 14
+   "Loss: White wins by adjudication": 66
+   "Win: Black mates": 30
+   "Win: Black wins by adjudication": 110
+   "Win: White mates": 33
+   "Win: White wins by adjudication": 124
+Player: Kheprichess
+   "Draw by 3-fold repetition": 27
+   "Draw by adjudication": 8
+   "Draw by fifty moves rule": 17
+   "Draw by insufficient mating material": 3
+   "Draw by stalemate": 3
+   "Loss: Black mates": 30
+   "Loss: Black wins by adjudication": 110
+   "Loss: White mates": 33
+   "Loss: White wins by adjudication": 124
+   "Win: Black mates": 4
+   "Win: Black wins by adjudication": 61
+   "Win: White mates": 14
+   "Win: White wins by adjudication": 66
+Finished match

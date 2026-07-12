@@ -241,6 +241,8 @@ void sortMoves(MoveList& moveList, int moveScores[]) {
 }
 /** Quiescence Search ignores depth limit and recursively plays out all available captures. */
 int quiescence(Board& board, int alpha, int beta) {
+    if (stopSearch) return evaluate(board);
+
     // get standalone score before doing anything
     int currentScore = evaluate(board);
 
@@ -282,6 +284,12 @@ int quiescence(Board& board, int alpha, int beta) {
         localNodeCounter++; // increment node count
         if ((localNodeCounter & 2047) == 0) {
             nodesSearched += 2048;
+            checkTime();
+        }
+        // if time is up, unmake move and exit
+        if (stopSearch) {
+            unmakeMove(move, board);
+            return currentScore;
         }
         // recurse until there are no captures left
         int score = -quiescence(board, -beta, -alpha);
