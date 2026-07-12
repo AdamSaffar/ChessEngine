@@ -1,5 +1,12 @@
 # C++ Chess Engine
 
+## Introduction
+One of the most classical challenges in computer science and artificial intelligence is chess programming. At first glance, the rules of the game appear relatively straightforward compared to other algorithmic problems. However, creating an engine capable of playing at a high level requires navigating a massive state space, as the game tree expands exponentially with every turn. To put this in perspective, there exist roughly 10 to the power of 120 possible game variations in chess. Compared to the estimated 10 to the power of 80 atoms in the observable universe, the hardware limitations of blindly evaluating these board states become immediately clear.
+
+To bypass this exponential growth, a competitive engine cannot simply rely on brute-force calculation. It requires a strict focus on memory-level optimization, leveraging high-performance Data-Oriented Design in C++. The objective of this project is to construct a system that optimizes hardware utilization at the CPU cache level, implements efficient search algorithms, and utilizes pruning methods to immediately discard suboptimal branches of the search tree.
+
+This repository contains a fully functional, UCI-compatible C++ chess engine currently operating at an estimated **~2200 ELO**. Alongside the core engine logic, the project includes an SFML-based GUI for one-on-one gameplay and a dedicated framework for automated tournament testing. The sections below detail the specific architecture, memory structures, and heuristics utilized to achieve this performance.
+
 ## Board Representation & Move Generation
 A major design decision early on was opting to use bitboards rather than simplistic 2D arrays to represent the chessboard. The primary reason for this is performance at the memory level. In a standard 2D array, representing a single piece requires an entire byte (or even 4 bytes) just to store its piece identifier. With bitboards, that same piece is represented by a single bit inside a 64-bit integer. When the engine is evaluating millions of different board states, memory optimization matters immensely. Every fraction of a second the CPU cache misses and has to fetch bloated array data from RAM is time stolen from evaluating a crucial winning move.
 
